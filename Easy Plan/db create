@@ -12,7 +12,7 @@ CREATE TABLE admin (
 CREATE TABLE location (
     location_id INT PRIMARY KEY AUTO_INCREMENT,
     address VARCHAR(500) NOT NULL,
-    barangay VARCHAR(100) NOT NULL,
+    city VARCHAR(100) NOT NULL,
     region VARCHAR(100) NOT NULL
 );
 
@@ -139,37 +139,207 @@ CREATE TABLE review (
     FOREIGN KEY (inquiry_id) REFERENCES inquiry(inquiry_id)
 );
 
--- Insert sample data for Admin
+-- ===========================================
+-- COMPREHENSIVE DUMMY DATA FOR ALL TABLES
+-- ===========================================
+
+-- Insert Admin data
 INSERT INTO admin (email, password) VALUES 
-('admin@eventmanagement.com', 'admin123');
+('admin@eventmanagement.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('manager@eventmanagement.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('supervisor@eventmanagement.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
 
--- Insert sample data for Time Slots
+-- Insert Time Slots data
 INSERT INTO time_slot (time) VALUES 
-('09:00:00'), ('10:00:00'), ('11:00:00'), ('14:00:00'), ('15:00:00'), ('16:00:00'), ('19:00:00'), ('20:00:00');
+('08:00:00'), ('09:00:00'), ('10:00:00'), ('11:00:00'), ('12:00:00'),
+('13:00:00'), ('14:00:00'), ('15:00:00'), ('16:00:00'), ('17:00:00'),
+('18:00:00'), ('19:00:00'), ('20:00:00'), ('21:00:00'), ('22:00:00');
 
--- Insert sample data for Locations
+-- Insert Location data
 INSERT INTO location (address, barangay, region) VALUES 
-('Rizal Park', 'Ermita', 'NCR'),
+('Rizal Park, Manila', 'Ermita', 'NCR'),
 ('SM Mall of Asia Concert Grounds', 'Pasay', 'NCR'),
-('Ayala Triangle Gardens', 'Makati', 'NCR');
+('Ayala Triangle Gardens', 'Makati', 'NCR'),
+('Eastwood City Open Park', 'Bagumbayan', 'NCR'),
+('BGC Central Plaza', 'Fort Bonifacio', 'NCR'),
+('UP Sunken Garden', 'Diliman', 'NCR'),
+('La Mesa Eco Park', 'Greater Lagro', 'NCR'),
+('Marikina Sports Center', 'Marikina Heights', 'NCR'),
+('Quezon Memorial Circle', 'South Triangle', 'NCR'),
+('Cultural Center of the Philippines', 'Pasay', 'NCR');
 
--- Insert sample data for Genres
+-- Insert Genre data
 INSERT INTO genre (name, description) VALUES 
-('Rock', 'Rock music genre'),
-('Pop', 'Popular music genre'),
-('Jazz', 'Jazz music genre'),
-('Folk', 'Folk music genre'),
-('Classical', 'Classical music genre'),
-('Electronic', 'Electronic music genre');
+('Rock', 'Rock music with electric guitars and strong rhythms'),
+('Pop', 'Popular mainstream music with catchy melodies'),
+('Jazz', 'Improvisational music with complex harmonies'),
+('Folk', 'Traditional acoustic music with storytelling'),
+('Classical', 'Orchestral and chamber music compositions'),
+('Electronic', 'Synthesizer and computer-generated music'),
+('Blues', 'Soulful music expressing emotions and struggles'),
+('Country', 'Rural American music with guitars and fiddles'),
+('R&B', 'Rhythm and blues with soulful vocals'),
+('Reggae', 'Jamaican music with distinctive rhythm patterns'),
+('Hip-Hop', 'Rap music with rhythmic spoken lyrics'),
+('Alternative', 'Non-mainstream rock and indie music');
 
--- Insert sample data for Clients
+-- Insert Client data
 INSERT INTO client (name, email, phone, password) VALUES 
-('Juan dela Cruz', 'juan@email.com', '+639123456789', 'hashed_password'),
-('Maria Santos', 'maria@email.com', '+639987654321', 'hashed_password'),
-('Pedro Reyes', 'pedro@email.com', '+639111222333', 'hashed_password');
+('Juan dela Cruz', 'juan.delacruz@email.com', '+639123456789', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('Maria Santos', 'maria.santos@email.com', '+639987654321', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('Pedro Reyes', 'pedro.reyes@email.com', '+639111222333', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('Ana Garcia', 'ana.garcia@email.com', '+639444555666', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('Roberto Cruz', 'roberto.cruz@email.com', '+639777888999', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('Carmen Lopez', 'carmen.lopez@email.com', '+639222333444', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('Diego Fernandez', 'diego.fernandez@email.com', '+639555777888', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('Isabella Rodriguez', 'isabella.rodriguez@email.com', '+639666999111', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('Luis Mendoza', 'luis.mendoza@email.com', '+639333666999', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
+('Sofia Ramos', 'sofia.ramos@email.com', '+639888111222', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
 
--- Insert sample data for Buskers
+-- Insert Busker data
 INSERT INTO busker (band_name, name, contact_number, address, birthday, has_equipment, status, password, email) VALUES 
-('The Manila Sound', 'Carlos Rivera', '+639555666777', '123 Music St, Manila', '1990-05-15', TRUE, 'active', 'hashed_password', 'carlos@email.com'),
-('Solo Artist', 'Ana Mendoza', '+639444555666', '456 Artist Ave, Quezon City', '1995-08-22', FALSE, 'active', 'hashed_password', 'ana@email.com'),
-('Street Performers', 'Miguel Torres', '+639333444555', '789 Performance Blvd, Makati', '1988-12-10', TRUE, 'active', 'hashed_password', 'miguel@email.com');
+('The Manila Sound', 'Carlos Rivera', '+639555666777', '123 Music St, Manila', '1990-05-15', TRUE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'carlos.rivera@email.com'),
+('Solo Acoustic', 'Ana Mendoza', '+639444555666', '456 Artist Ave, Quezon City', '1995-08-22', FALSE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ana.mendoza@email.com'),
+('Street Groove', 'Miguel Torres', '+639333444555', '789 Performance Blvd, Makati', '1988-12-10', TRUE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'miguel.torres@email.com'),
+('Jazz Collective', 'Elena Morales', '+639222111000', '321 Jazz Lane, Pasig', '1992-03-18', TRUE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'elena.morales@email.com'),
+('Folk Stories', 'Ramon Cruz', '+639111000999', '654 Folk Road, San Juan', '1985-11-30', FALSE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ramon.cruz@email.com'),
+('Electric Dreams', 'Lisa Tan', '+639000888777', '987 Electronic Ave, Taguig', '1993-07-12', TRUE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'lisa.tan@email.com'),
+('Blue Notes', 'David Santos', '+639777555333', '147 Blues Street, Mandaluyong', '1989-09-25', TRUE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'david.santos@email.com'),
+('Country Roads', 'Grace Lim', '+639666444222', '258 Country Circle, Marikina', '1991-04-08', FALSE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'grace.lim@email.com'),
+('Soul Singers', 'Mark Dela Rosa', '+639555333111', '369 Soul Avenue, Muntinlupa', '1987-01-20', TRUE, 'inactive', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'mark.delarosa@email.com'),
+('Reggae Vibes', 'Tony Aguilar', '+639444222000', '741 Reggae Road, Paranaque', '1994-06-14', TRUE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'tony.aguilar@email.com'),
+('Hip-Hop Beats', 'Jake Villanueva', '+639333111888', '852 Hip-Hop Highway, Las Pinas', '1996-10-03', TRUE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'jake.villanueva@email.com'),
+('Alternative Sound', 'Sarah Kim', '+639222888555', '963 Alternative Alley, Antipolo', '1990-12-17', FALSE, 'active', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'sarah.kim@email.com');
+
+-- Insert Event data
+INSERT INTO event_table (event_name, event_type, event_date, time_slot_id, location_id, venue_equipment, description) VALUES 
+('Summer Music Festival', 'Festival', '2025-07-15', 1, 1, 'Full PA system, stage lighting, microphones', 'Annual summer music celebration with multiple performers'),
+('Corporate Team Building', 'Corporate', '2025-06-20', 5, 3, 'Basic sound system, wireless mics', 'Team building event for ABC Company employees'),
+('Wedding Reception', 'Wedding', '2025-08-10', 8, 2, 'Complete audio setup, dance floor lighting', 'Evening wedding reception entertainment'),
+('Birthday Party', 'Private', '2025-06-25', 6, 4, 'Portable speakers, microphone', 'Sweet 16 birthday celebration'),
+('Community Gathering', 'Community', '2025-07-05', 4, 5, 'Stage setup, basic PA system', 'Monthly community social event'),
+('Restaurant Opening', 'Business', '2025-06-30', 7, 6, 'Ambient sound system', 'Grand opening of new restaurant'),
+('School Graduation', 'Academic', '2025-07-20', 3, 7, 'Full ceremony audio, stage setup', 'High school graduation ceremony'),
+('Charity Fundraiser', 'Charity', '2025-08-05', 9, 8, 'Complete event setup, lighting', 'Fundraising event for local children'),
+('Product Launch', 'Corporate', '2025-07-10', 10, 9, 'Professional AV equipment', 'Tech company product launch event'),
+('Art Gallery Opening', 'Cultural', '2025-06-28', 11, 10, 'Minimal audio setup, ambient lighting', 'Contemporary art exhibition opening'),
+('Sports Event Halftime', 'Sports', '2025-08-15', 2, 8, 'Stadium sound system', 'Basketball game halftime entertainment'),
+('Mall Concert', 'Commercial', '2025-07-25', 12, 2, 'Mall PA system, stage platform', 'Weekend mall entertainment program');
+
+-- Insert Supporting Document data
+INSERT INTO supporting_document (doc_link) VALUES 
+('https://drive.google.com/file/d/1a2b3c4d5e6f7g8h9i0j/view'),
+('https://dropbox.com/s/abcd1234/event_contract.pdf'),
+('https://onedrive.live.com/redir?resid=ABCD1234'),
+('https://drive.google.com/file/d/9h8g7f6e5d4c3b2a1z0y/view'),
+('https://dropbox.com/s/efgh5678/venue_layout.pdf'),
+('https://onedrive.live.com/redir?resid=EFGH5678'),
+('https://drive.google.com/file/d/z0y9x8w7v6u5t4s3r2q1/view'),
+('https://dropbox.com/s/ijkl9012/insurance_doc.pdf'),
+('https://onedrive.live.com/redir?resid=IJKL9012'),
+('https://drive.google.com/file/d/q1r2s3t4u5v6w7x8y9z0/view'),
+('https://dropbox.com/s/mnop3456/equipment_list.pdf'),
+('https://onedrive.live.com/redir?resid=MNOP3456');
+
+-- Insert Inquiry data
+INSERT INTO inquiry (client_id, event_id, inquiry_date_id, budget, inquiry_status, docs_id) VALUES 
+(1, 1, 1, 15000, 'pending', 1),
+(2, 2, 2, 8000, 'approved', 2),
+(3, 3, 3, 25000, 'completed', 3),
+(4, 4, 4, 5000, 'pending', 4),
+(5, 5, 5, 12000, 'approved', 5),
+(6, 6, 6, 7000, 'rejected', 6),
+(7, 7, 7, 18000, 'pending', 7),
+(8, 8, 8, 20000, 'approved', 8),
+(9, 9, 9, 30000, 'completed', 9),
+(10, 10, 10, 6000, 'pending', 10),
+(1, 11, 11, 22000, 'approved', 11),
+(2, 12, 12, 9000, 'pending', 12),
+(3, 1, 13, 16000, 'rejected', 1),
+(4, 2, 14, 8500, 'pending', 2),
+(5, 3, 15, 26000, 'approved', 3);
+
+-- Insert Inquiry Genre data (many-to-many relationship)
+INSERT INTO inquiry_genre (inquiry_id, genre_id) VALUES 
+(1, 1), (1, 2), (1, 6),    -- Summer Festival: Rock, Pop, Electronic
+(2, 2), (2, 9),            -- Corporate: Pop, R&B
+(3, 3), (3, 4), (3, 9),    -- Wedding: Jazz, Folk, R&B
+(4, 2), (4, 11),           -- Birthday: Pop, Hip-Hop
+(5, 4), (5, 1),            -- Community: Folk, Rock
+(6, 3), (6, 7),            -- Restaurant: Jazz, Blues
+(7, 9), (7, 2),            -- Graduation: R&B, Pop
+(8, 4), (8, 8),            -- Charity: Folk, Country
+(9, 6), (9, 12),           -- Product Launch: Electronic, Alternative
+(10, 5), (10, 3),          -- Gallery: Classical, Jazz
+(11, 1), (11, 12),         -- Sports: Rock, Alternative
+(12, 2), (12, 11);         -- Mall: Pop, Hip-Hop
+
+-- Insert Busker Genre data (many-to-many relationship)
+INSERT INTO busker_genre (busker_id, genre_id) VALUES 
+(1, 1), (1, 2),            -- Carlos: Rock, Pop
+(2, 4), (2, 2),            -- Ana: Folk, Pop
+(3, 1), (3, 12),           -- Miguel: Rock, Alternative
+(4, 3), (4, 7),            -- Elena: Jazz, Blues
+(5, 4), (5, 8),            -- Ramon: Folk, Country
+(6, 6), (6, 2),            -- Lisa: Electronic, Pop
+(7, 7), (7, 3),            -- David: Blues, Jazz
+(8, 8), (8, 4),            -- Grace: Country, Folk
+(9, 9), (9, 7),            -- Mark: R&B, Blues
+(10, 10), (10, 11),        -- Tony: Reggae, Hip-Hop
+(11, 11), (11, 6),         -- Jake: Hip-Hop, Electronic
+(12, 12), (12, 1);         -- Sarah: Alternative, Rock
+
+-- Insert Busker Equipment data
+INSERT INTO busker_equipment (busker_id, equipment_name, quantity, condition) VALUES 
+(1, 'Electric Guitar', '2', 'Excellent'),
+(1, 'Bass Guitar', '1', 'Good'),
+(1, 'Drum Set', '1', 'Excellent'),
+(1, 'Microphones', '4', 'Good'),
+(1, 'PA System', '1', 'Excellent'),
+(3, 'Acoustic Guitar', '3', 'Good'),
+(3, 'Harmonica', '2', 'Excellent'),
+(3, 'Portable Amplifier', '1', 'Good'),
+(4, 'Saxophone', '1', 'Excellent'),
+(4, 'Piano Keyboard', '1', 'Good'),
+(4, 'Double Bass', '1', 'Excellent'),
+(6, 'Synthesizer', '2', 'Excellent'),
+(6, 'Drum Machine', '1', 'Good'),
+(6, 'Laptop with Software', '1', 'Excellent'),
+(6, 'MIDI Controller', '1', 'Good'),
+(7, 'Electric Guitar', '1', 'Good'),
+(7, 'Harmonica', '3', 'Excellent'),
+(7, 'Microphone', '2', 'Good'),
+(9, 'Microphone', '3', 'Excellent'),
+(9, 'Keyboard', '1', 'Good'),
+(9, 'Speakers', '2', 'Good'),
+(10, 'Acoustic Guitar', '2', 'Excellent'),
+(10, 'Bongos', '1', 'Good'),
+(10, 'Microphone', '2', 'Excellent'),
+(11, 'Turntables', '2', 'Excellent'),
+(11, 'Microphone', '2', 'Good'),
+(11, 'Speakers', '4', 'Excellent'),
+(11, 'Laptop', '1', 'Good');
+
+-- Insert Hire data
+INSERT INTO hire (inquiry_id, busker_id, price, payment_status, performance_time, payment_method) VALUES 
+(2, 1, 8000, 'paid', '14:00:00', 'Bank Transfer'),
+(3, 4, 12000, 'paid', '19:00:00', 'Cash'),
+(5, 2, 6000, 'pending', '15:00:00', 'GCash'),
+(8, 5, 8000, 'paid', '20:00:00', 'Bank Transfer'),
+(9, 6, 15000, 'paid', '21:00:00', 'Credit Card'),
+(11, 3, 10000, 'pending', '13:00:00', 'PayMaya'),
+(1, 7, 7500, 'pending', '09:00:00', 'Cash'),
+(15, 10, 9000, 'paid', '16:00:00', 'Bank Transfer'),
+(14, 11, 5500, 'pending', '10:00:00', 'GCash'),
+(12, 12, 4500, 'paid', '11:00:00', 'Cash');
+
+-- Insert Review data
+INSERT INTO review (inquiry_id, reviewed_by, date, message) VALUES 
+(3, 'Maria Santos', '2025-06-01', 'Absolutely fantastic performance! The jazz trio made our wedding unforgettable. Professional, talented, and very accommodating.'),
+(9, 'Luis Mendoza', '2025-06-05', 'Great electronic music for our product launch. Lisa really understood our brand and created the perfect atmosphere.'),
+(2, 'Pedro Reyes', '2025-05-28', 'Carlos and his band were amazing at our corporate event. Great energy and kept everyone entertained throughout.'),
+(8, 'Isabella Rodriguez', '2025-06-03', 'Ramon delivered beautiful folk music for our charity event. Very professional and the audience loved it.'),
+(15, 'Ana Garcia', '2025-06-07', 'Tony brought amazing reggae vibes to our event. Everyone was dancing and having a great time. Highly recommended!'),
+(12, 'Maria Santos', '2025-06-10', 'Sarah provided excellent alternative music for our mall concert. Great crowd interaction and professional setup.'),
+(5, 'Roberto Cruz', '2025-05-30', 'Ana did a wonderful acoustic set for our community event. Her folk songs were perfect for the intimate setting.'),
+(11, 'Juan dela Cruz', '2025-06-08', 'Miguel and Street Groove rocked the halftime show! The crowd went wild. Excellent performance and stage presence.');
