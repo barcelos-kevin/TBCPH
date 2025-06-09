@@ -2,7 +2,7 @@
 require_once '../includes/config.php';
 
 // Check if user is already logged in
-if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'client') {
+if (isset($_SESSION['client_id'])) {
     header('Location: dashboard.php');
     exit();
 }
@@ -25,10 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($client && password_verify($password, $client['password'])) {
                 // Set session variables
-                $_SESSION['user_id'] = $client['client_id'];
-                $_SESSION['user_type'] = 'client';
-                $_SESSION['user_name'] = $client['name'];
-                $_SESSION['user_email'] = $client['email'];
+                $_SESSION['client_id'] = $client['client_id'];
+                $_SESSION['client_name'] = $client['name'];
+                $_SESSION['client_email'] = $client['email'];
 
                 // Redirect to dashboard
                 header('Location: dashboard.php');
@@ -172,14 +171,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <li><a href="/tbcph/public/about.php">About</a></li>
                 <li><a href="/tbcph/public/buskers.php">Buskers</a></li>
                 <li><a href="/tbcph/public/contact.php">Contact</a></li>
-                <?php if(isset($_SESSION['user_type'])): ?>
-                    <?php if($_SESSION['user_type'] == 'admin'): ?>
-                        <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
-                    <?php elseif($_SESSION['user_type'] == 'busker'): ?>
-                        <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
-                    <?php elseif($_SESSION['user_type'] == 'client'): ?>
-                        <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
-                    <?php endif; ?>
+                <?php if(isset($_SESSION['client_id'])): ?>
+                    <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
+                    <li><a href="/tbcph/client/profile.php">My Profile</a></li>
+                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
+                <?php elseif(isset($_SESSION['busker_id'])): ?>
+                    <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
+                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
+                <?php elseif(isset($_SESSION['admin_email'])): ?>
+                    <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
                     <li><a href="/tbcph/includes/logout.php">Logout</a></li>
                 <?php else: ?>
                     <li><a href="/tbcph/client/register.php">Register</a></li>

@@ -63,44 +63,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $eventId = $conn->lastInsertId();
 
-            // Handle supporting document upload
-            $docId = null;
-            if (isset($_FILES['supporting_doc']) && $_FILES['supporting_doc']['error'] === UPLOAD_ERR_OK) {
-                $uploadDir = __DIR__ . '/../uploads/documents/';
-                if (!file_exists($uploadDir)) {
-                    mkdir($uploadDir, 0777, true);
-                }
-
-                $fileName = time() . '_' . basename($_FILES['supporting_doc']['name']);
-                $uploadFile = $uploadDir . $fileName;
-
-                if (move_uploaded_file($_FILES['supporting_doc']['tmp_name'], $uploadFile)) {
-                    $stmt = $conn->prepare("INSERT INTO supporting_document (doc_link) VALUES (?)");
-                    $stmt->execute(['/tbcph/uploads/documents/' . $fileName]);
-                    $docId = $conn->lastInsertId();
-                }
-            }
-
             // Insert inquiry
             $stmt = $conn->prepare("
                 INSERT INTO inquiry (
-                    client_id, event_id, budget, inquiry_status, docs_id
-                ) VALUES (?, ?, ?, 'pending', ?)
+                    client_id, event_id, budget, inquiry_status
+                ) VALUES (?, ?, ?, 'pending')
             ");
             
             $stmt->execute([
                 $_SESSION['user_id'],
                 $eventId,
-                $_POST['budget'],
-                $docId
+                $_POST['budget']
             ]);
             
             $inquiryId = $conn->lastInsertId();
 
+            // Handle multiple supporting documents
+            if (!empty($_FILES['supporting_docs']['name'][0])) {
+                $upload_dir = __DIR__ . '/../uploads/';
+                if (!file_exists($upload_dir)) {
+                    mkdir($upload_dir, 0777, true);
+                }
+
+                foreach ($_FILES['supporting_docs']['tmp_name'] as $key => $tmp_name) {
+                    if ($_FILES['supporting_docs']['error'][$key] === UPLOAD_ERR_OK) {
+                        $file_name = time() . '_' . $_FILES['supporting_docs']['name'][$key];
+                        $file_path = $upload_dir . $file_name;
+                        
+                        if (move_uploaded_file($tmp_name, $file_path)) {
+                            // Insert document
+                            $stmt = $conn->prepare("INSERT INTO supporting_document (doc_link) VALUES (?)");
+                            $stmt->execute(['uploads/' . $file_name]);
+                            $doc_id = $conn->lastInsertId();
+
+                            // Link document to inquiry
+                            $stmt = $conn->prepare("INSERT INTO inquiry_document (inquiry_id, docs_id) VALUES (?, ?)");
+                            $stmt->execute([$inquiryId, $doc_id]);
+                        }
+                    }
+                }
+            }
+
             // Insert genres
             if (!empty($_POST['genres'])) {
                 $stmt = $conn->prepare("
-                    INSERT INTO inquiry_genre (inquiry_id, genre_id) 
+                    INSERT INTO inquiry_genre (inquiry_id, genre_id)
                     VALUES (?, ?)
                 ");
                 
@@ -356,6 +363,57 @@ try {
             outline: none;
             box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
         }
+
+        .file-list {
+            margin-top: 10px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            padding: 5px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .file-item .file-name {
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+
+        .file-item .file-size {
+            color: #6c757d;
+            font-size: 0.875em;
+        }
+
+        .file-item .remove-file {
+            color: #dc3545;
+            cursor: pointer;
+            padding: 0 5px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+
+        input[type="file"]::-webkit-file-upload-button {
+            background: #3498db;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        input[type="file"]::-webkit-file-upload-button:hover {
+            background: #2980b9;
+        }
     </style>
 </head>
 <body>
@@ -500,10 +558,10 @@ try {
                     </div>
 
                     <div class="form-group">
-                        <label for="supporting_doc">Supporting Documents</label>
-                        <input type="file" id="supporting_doc" name="supporting_doc" 
-                               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                        <small class="form-text">Upload any relevant documents (contracts, permits, etc.)</small>
+                        <label for="supporting_docs">Supporting Documents</label>
+                        <input type="file" id="supporting_docs" name="supporting_docs[]" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                        <small>You can upload multiple files (PDF, DOC, DOCX, JPG, PNG). Maximum file size: 5MB each.</small>
+                        <div id="file-list" class="file-list"></div>
                     </div>
 
                     <button type="submit" class="btn primary">Submit Inquiry</button>
@@ -654,14 +712,66 @@ try {
             // Initial state
             updateLocationFields();
 
-            // Add file size validation
-            document.getElementById('supporting_doc').addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    const maxSize = 5 * 1024 * 1024; // 5MB
+            // File upload handling
+            document.getElementById('supporting_docs').addEventListener('change', function(e) {
+                const fileList = document.getElementById('file-list');
+                fileList.innerHTML = '';
+                
+                Array.from(this.files).forEach((file, index) => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'file-item';
+                    
+                    const fileName = document.createElement('span');
+                    fileName.className = 'file-name';
+                    fileName.textContent = file.name;
+                    
+                    const fileSize = document.createElement('span');
+                    fileSize.className = 'file-size';
+                    fileSize.textContent = formatFileSize(file.size);
+                    
+                    const removeButton = document.createElement('span');
+                    removeButton.className = 'remove-file';
+                    removeButton.innerHTML = '&times;';
+                    removeButton.onclick = function() {
+                        const dt = new DataTransfer();
+                        const input = document.getElementById('supporting_docs');
+                        const { files } = input;
+                        
+                        for (let i = 0; i < files.length; i++) {
+                            if (i !== index) {
+                                dt.items.add(files[i]);
+                            }
+                        }
+                        
+                        input.files = dt.files;
+                        fileItem.remove();
+                    };
+                    
+                    fileItem.appendChild(fileName);
+                    fileItem.appendChild(fileSize);
+                    fileItem.appendChild(removeButton);
+                    fileList.appendChild(fileItem);
+                });
+            });
+
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
+            // Form validation
+            document.querySelector('form').addEventListener('submit', function(e) {
+                const files = document.getElementById('supporting_docs').files;
+                const maxSize = 5 * 1024 * 1024; // 5MB
+                
+                for (let file of files) {
                     if (file.size > maxSize) {
-                        alert('File size must be less than 5MB');
-                        e.target.value = '';
+                        e.preventDefault();
+                        alert(`File "${file.name}" is too large. Maximum file size is 5MB.`);
+                        return;
                     }
                 }
             });

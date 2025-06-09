@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 // Start session if not already started
@@ -18,13 +18,13 @@ $query = "SELECT b.*,
           WHERE b.status = 'active'
           GROUP BY b.busker_id";
 
-$result = mysqli_query($conn, $query);
-$buskers = mysqli_fetch_all($result, MYSQLI_ASSOC);
+$stmt = $conn->query($query);
+$buskers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch all genres for filter
 $genres_query = "SELECT DISTINCT name FROM genre ORDER BY name";
-$genres_result = mysqli_query($conn, $genres_query);
-$genres = mysqli_fetch_all($genres_result, MYSQLI_ASSOC);
+$genres_stmt = $conn->query($genres_query);
+$genres = $genres_stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -354,7 +354,7 @@ $genres = mysqli_fetch_all($genres_result, MYSQLI_ASSOC);
                     <a href="contact.php">Contact</a>
                     <?php if (isset($_SESSION['client_id'])): ?>
                         <a href="../client/dashboard.php">Dashboard</a>
-                        <a href="../client/logout.php">Logout</a>
+                        <a href="/tbcph/includes/logout.php?type=client">Logout</a>
                     <?php else: ?>
                         <a href="../client/index.php">Login</a>
                         <a href="../client/register.php">Register</a>

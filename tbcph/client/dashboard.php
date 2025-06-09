@@ -2,7 +2,7 @@
 require_once '../includes/config.php';
 
 // Check if user is logged in as client
-if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'client') {
+if (!isset($_SESSION['client_id'])) {
     header('Location: index.php');
     exit();
 }
@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_inquiry'])) {
         ");
         $stmt->execute([
             $_POST['inquiry_id'],
-            $_SESSION['user_id']
+            $_SESSION['client_id']
         ]);
         $_SESSION['success'] = 'Inquiry has been deleted successfully!';
         header('Location: ' . $_SERVER['PHP_SELF']);
@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_inquiry'])) {
             $_POST['venue_equipment'],
             $_POST['description'],
             $_POST['inquiry_id'],
-            $_SESSION['user_id']
+            $_SESSION['client_id']
         ]);
 
         // Update inquiry budget
@@ -66,38 +66,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_inquiry'])) {
         $stmt->execute([
             $_POST['budget'],
             $_POST['inquiry_id'],
-            $_SESSION['user_id']
+            $_SESSION['client_id']
         ]);
 
-        // Update supporting document if a new one is uploaded
-        if (!empty($_FILES['supporting_doc']['name'])) {
+        // Handle multiple supporting documents
+        if (!empty($_FILES['supporting_docs']['name'][0])) {
             $upload_dir = __DIR__ . '/../uploads/';
             if (!file_exists($upload_dir)) {
                 mkdir($upload_dir, 0777, true);
             }
 
-            $file_name = time() . '_' . $_FILES['supporting_doc']['name'];
-            $file_path = $upload_dir . $file_name;
-            
-            if (move_uploaded_file($_FILES['supporting_doc']['tmp_name'], $file_path)) {
-                // Delete old document if exists
-                $stmt = $conn->prepare("SELECT docs_id FROM inquiry WHERE inquiry_id = ?");
-                $stmt->execute([$_POST['inquiry_id']]);
-                $old_doc = $stmt->fetch(PDO::FETCH_ASSOC);
-                
-                if ($old_doc && $old_doc['docs_id']) {
-                    $stmt = $conn->prepare("DELETE FROM supporting_document WHERE docs_id = ?");
-                    $stmt->execute([$old_doc['docs_id']]);
+            // Process each uploaded file
+            foreach ($_FILES['supporting_docs']['tmp_name'] as $key => $tmp_name) {
+                if ($_FILES['supporting_docs']['error'][$key] === UPLOAD_ERR_OK) {
+                    $file_name = time() . '_' . $_FILES['supporting_docs']['name'][$key];
+                    $file_path = $upload_dir . $file_name;
+                    
+                    if (move_uploaded_file($tmp_name, $file_path)) {
+                        // Insert new document
+                        $stmt = $conn->prepare("INSERT INTO supporting_document (doc_link) VALUES (?)");
+                        $stmt->execute(['uploads/' . $file_name]);
+                        $new_doc_id = $conn->lastInsertId();
+
+                        // Link document to inquiry
+                        $stmt = $conn->prepare("INSERT INTO inquiry_document (inquiry_id, docs_id) VALUES (?, ?)");
+                        $stmt->execute([$_POST['inquiry_id'], $new_doc_id]);
+                    }
                 }
+            }
+        }
 
-                // Insert new document
-                $stmt = $conn->prepare("INSERT INTO supporting_document (doc_link) VALUES (?)");
-                $stmt->execute(['uploads/' . $file_name]);
-                $new_doc_id = $conn->lastInsertId();
+        // Delete selected documents if any
+        if (!empty($_POST['delete_docs'])) {
+            foreach ($_POST['delete_docs'] as $doc_id) {
+                // Get document info
+                $stmt = $conn->prepare("SELECT doc_link FROM supporting_document WHERE docs_id = ?");
+                $stmt->execute([$doc_id]);
+                $doc = $stmt->fetch(PDO::FETCH_ASSOC);
 
-                // Update inquiry with new document ID
-                $stmt = $conn->prepare("UPDATE inquiry SET docs_id = ? WHERE inquiry_id = ?");
-                $stmt->execute([$new_doc_id, $_POST['inquiry_id']]);
+                if ($doc) {
+                    // Delete file from server
+                    $file_path = __DIR__ . '/../' . $doc['doc_link'];
+                    if (file_exists($file_path)) {
+                        unlink($file_path);
+                    }
+
+                    // Delete from database
+                    $stmt = $conn->prepare("DELETE FROM inquiry_document WHERE docs_id = ?");
+                    $stmt->execute([$doc_id]);
+                    $stmt = $conn->prepare("DELETE FROM supporting_document WHERE docs_id = ?");
+                    $stmt->execute([$doc_id]);
+                }
             }
         }
 
@@ -142,19 +161,21 @@ try {
             ts.time as time_slot,
             e.description,
             GROUP_CONCAT(g.name) as genres,
-            sd.doc_link as document_link
+            GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
+            GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links
         FROM inquiry i
         JOIN event_table e ON i.event_id = e.event_id
         LEFT JOIN location l ON e.location_id = l.location_id
         LEFT JOIN time_slot ts ON e.time_slot_id = ts.time_slot_id
         LEFT JOIN inquiry_genre ig ON i.inquiry_id = ig.inquiry_id
         LEFT JOIN genre g ON ig.genre_id = g.genre_id
-        LEFT JOIN supporting_document sd ON i.docs_id = sd.docs_id
+        LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
+        LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
         WHERE i.client_id = ? AND i.inquiry_status != 'deleted by client'
         GROUP BY i.inquiry_id
         ORDER BY e.event_date DESC
     ");
-    $stmt->execute([$_SESSION['user_id']]);
+    $stmt->execute([$_SESSION['client_id']]);
     $inquiries = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $error = 'Error fetching inquiries: ' . $e->getMessage();
@@ -664,6 +685,55 @@ if (isset($_SESSION['error'])) {
             border-color: #3498db;
             outline: none;
         }
+
+        .document-list {
+            margin-top: 10px;
+        }
+
+        .document-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .document-item a {
+            flex-grow: 1;
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        .document-item a:hover {
+            text-decoration: underline;
+        }
+
+        .document-item .delete-doc {
+            margin-left: 10px;
+            color: #e74c3c;
+            cursor: pointer;
+        }
+
+        .current-documents {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .current-documents h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -696,7 +766,7 @@ if (isset($_SESSION['error'])) {
 
     <main>
         <div class="dashboard-container">
-            <h1>Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?>!</h1>
+            <h1>Welcome, <?php echo htmlspecialchars($_SESSION['client_name']); ?>!</h1>
             
             <?php if (isset($success)): ?>
                 <div class="success-message"><?php echo $success; ?></div>
@@ -708,7 +778,7 @@ if (isset($_SESSION['error'])) {
 
             <div class="dashboard-actions">
                 <a href="/tbcph/public/contact.php" class="btn primary">Book a Busker</a>
-                <a href="profile.php" class="btn secondary">Edit Profile</a>
+                <a href="profile.php" class="btn secondary">View Profile</a>
             </div>
 
             <section class="inquiries-section">
@@ -774,7 +844,7 @@ if (isset($_SESSION['error'])) {
                 </div>
                 <div class="detail-section">
                     <h3>Supporting Documents</h3>
-                    <div id="details_documents"></div>
+                    <div id="details_documents" class="document-list"></div>
                 </div>
             </div>
             <div class="action-buttons">
@@ -839,9 +909,14 @@ if (isset($_SESSION['error'])) {
                 </div>
                 
                 <div class="form-group">
-                    <label for="edit_supporting_doc">Supporting Document</label>
-                    <input type="file" id="edit_supporting_doc" name="supporting_doc" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                    <small>Leave empty to keep existing document</small>
+                    <label for="edit_supporting_docs">Supporting Documents</label>
+                    <input type="file" id="edit_supporting_docs" name="supporting_docs[]" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                    <small>You can select multiple files. Leave empty to keep existing documents.</small>
+                    
+                    <div id="current_documents" class="current-documents">
+                        <h4>Current Documents</h4>
+                        <div class="document-list"></div>
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -937,12 +1012,24 @@ if (isset($_SESSION['error'])) {
             // Display genres
             document.getElementById('details_genres').textContent = inquiry.genres || 'None selected';
             
-            // Display supporting document
+            // Display supporting documents
             const documentsDiv = document.getElementById('details_documents');
-            if (inquiry.document_link) {
-                documentsDiv.innerHTML = `<a href="../${inquiry.document_link}" target="_blank">View Document</a>`;
+            documentsDiv.innerHTML = '';
+            
+            if (inquiry.doc_links) {
+                const docLinks = inquiry.doc_links.split(',');
+                const docIds = inquiry.doc_ids.split(',');
+                
+                docLinks.forEach((link, index) => {
+                    const docItem = document.createElement('div');
+                    docItem.className = 'document-item';
+                    docItem.innerHTML = `
+                        <a href="../${link}" target="_blank">Document ${index + 1}</a>
+                    `;
+                    documentsDiv.appendChild(docItem);
+                });
             } else {
-                documentsDiv.innerHTML = 'No document uploaded';
+                documentsDiv.innerHTML = 'No documents uploaded';
             }
             
             // Show/hide edit and delete buttons based on status
@@ -986,6 +1073,30 @@ if (isset($_SESSION['error'])) {
             document.querySelectorAll('input[name="genres[]"]').forEach(checkbox => {
                 checkbox.checked = genres.includes(checkbox.nextSibling.textContent.trim());
             });
+            
+            // Display current documents
+            const currentDocsDiv = document.querySelector('#current_documents .document-list');
+            currentDocsDiv.innerHTML = '';
+            
+            if (currentInquiry.doc_links) {
+                const docLinks = currentInquiry.doc_links.split(',');
+                const docIds = currentInquiry.doc_ids.split(',');
+                
+                docLinks.forEach((link, index) => {
+                    const docItem = document.createElement('div');
+                    docItem.className = 'document-item';
+                    docItem.innerHTML = `
+                        <a href="../${link}" target="_blank">Document ${index + 1}</a>
+                        <label class="delete-doc">
+                            <input type="checkbox" name="delete_docs[]" value="${docIds[index]}">
+                            Delete
+                        </label>
+                    `;
+                    currentDocsDiv.appendChild(docItem);
+                });
+            } else {
+                currentDocsDiv.innerHTML = 'No documents uploaded';
+            }
             
             modal.style.display = 'block';
             closeDetailsModal();
