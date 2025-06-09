@@ -1,91 +1,90 @@
 <?php
 require_once '../includes/config.php';
 
-$error = '';
-$success = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        // Validate input
-        $email = filter_var($_POST['email'], FILTER_VALIDATE_EMAIL);
-        if (!$email) {
-            throw new Exception('Invalid email address');
-        }
-
-        // Check if email already exists
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM busker WHERE email = ?");
-        $stmt->execute([$email]);
-        if ($stmt->fetchColumn() > 0) {
-            throw new Exception('Email already registered');
-        }
-
-        // Start transaction
-        $conn->beginTransaction();
-
-        // Insert busker
-        $stmt = $conn->prepare("
-            INSERT INTO busker (
-                band_name, name, contact_number, address, birthday,
-                has_equipment, status, password, email
-            ) VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?)
-        ");
-        
-        $stmt->execute([
-            $_POST['band_name'],
-            $_POST['name'],
-            $_POST['contact_number'],
-            $_POST['address'],
-            $_POST['birthday'],
-            isset($_POST['has_equipment']) ? 1 : 0,
-            password_hash($_POST['password'], PASSWORD_DEFAULT),
-            $email
-        ]);
-        
-        $busker_id = $conn->lastInsertId();
-
-        // Insert genres
-        if (!empty($_POST['genres'])) {
-            $stmt = $conn->prepare("
-                INSERT INTO busker_genre (busker_id, genre_id)
-                VALUES (?, ?)
-            ");
-            foreach ($_POST['genres'] as $genre_id) {
-                $stmt->execute([$busker_id, $genre_id]);
-            }
-        }
-
-        // Insert equipment if provided
-        if (isset($_POST['has_equipment']) && !empty($_POST['equipment'])) {
-            $stmt = $conn->prepare("
-                INSERT INTO busker_equipment (busker_id, equipment_name, quantity, eq_condition)
-                VALUES (?, ?, ?, ?)
-            ");
-            foreach ($_POST['equipment'] as $equipment) {
-                if (!empty($equipment['name'])) {
-                    $stmt->execute([
-                        $busker_id,
-                        $equipment['name'],
-                        $equipment['quantity'] ?? '1',
-                        $equipment['condition'] ?? 'Good'
-                    ]);
-                }
-            }
-        }
-
-        $conn->commit();
-        $success = 'Registration successful! Please wait for admin approval.';
-    } catch (Exception $e) {
-        $conn->rollBack();
-        $error = $e->getMessage();
-    }
+// Check if user is already logged in
+if (isset($_SESSION['busker_id'])) {
+    header('Location: dashboard.php');
+    exit();
 }
 
-// Fetch available genres
-try {
-    $stmt = $conn->query("SELECT * FROM genre");
-    $genres = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch(PDOException $e) {
-    $genres = [];
+$error = '';
+$success = '';
+$formData = [
+    'name' => '',
+    'email' => '',
+    'phone' => '',
+    'address' => '',
+    'birthday' => '',
+    'has_equipment' => false,
+    'band_name' => ''
+];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Get and sanitize form data
+    $formData = [
+        'name' => htmlspecialchars(trim($_POST['name']), ENT_QUOTES, 'UTF-8'),
+        'email' => filter_var($_POST['email'], FILTER_VALIDATE_EMAIL),
+        'phone' => htmlspecialchars(trim($_POST['phone']), ENT_QUOTES, 'UTF-8'),
+        'address' => htmlspecialchars(trim($_POST['address']), ENT_QUOTES, 'UTF-8'),
+        'birthday' => htmlspecialchars(trim($_POST['birthday']), ENT_QUOTES, 'UTF-8'),
+        'has_equipment' => isset($_POST['has_equipment']),
+        'band_name' => htmlspecialchars(trim($_POST['band_name']), ENT_QUOTES, 'UTF-8')
+    ];
+    $password = $_POST['password'];
+    $confirm_password = $_POST['confirm_password'];
+
+    // Validate form data
+    if (empty($formData['name']) || empty($formData['email']) || empty($password) || empty($confirm_password)) {
+        $error = 'Please fill in all required fields';
+    } elseif (!$formData['email']) {
+        $error = 'Please enter a valid email address';
+    } elseif (strlen($password) < 8) {
+        $error = 'Password must be at least 8 characters long';
+    } elseif ($password !== $confirm_password) {
+        $error = 'Passwords do not match';
+    } else {
+        try {
+            // Check if email already exists
+            $stmt = $conn->prepare("SELECT COUNT(*) FROM busker WHERE email = ?");
+            $stmt->execute([$formData['email']]);
+            if ($stmt->fetchColumn() > 0) {
+                $error = 'Email already registered';
+            } else {
+                // Insert new busker
+                $stmt = $conn->prepare("
+                    INSERT INTO busker (name, email, contact_number, address, birthday, has_equipment, status, password, band_name)
+                    VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                ");
+                
+                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                
+                $stmt->execute([
+                    $formData['name'],
+                    $formData['email'],
+                    $formData['phone'],
+                    $formData['address'],
+                    $formData['birthday'],
+                    $formData['has_equipment'],
+                    $hashed_password,
+                    $formData['band_name']
+                ]);
+
+                $success = 'Registration successful! Please wait for admin approval.';
+                $formData = [
+                    'name' => '',
+                    'email' => '',
+                    'phone' => '',
+                    'address' => '',
+                    'birthday' => '',
+                    'has_equipment' => false,
+                    'band_name' => ''
+                ];
+            }
+        } catch (PDOException $e) {
+            $error = 'An error occurred. Please try again later.';
+            error_log("Registration error: " . $e->getMessage());
+        }
+    }
 }
 ?>
 
@@ -94,8 +93,157 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register as Busker - TBCPH</title>
+    <title>Busker Registration - TBCPH</title>
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
+    <style>
+        .auth-container {
+            min-height: calc(100vh - 200px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+
+        .auth-box {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .auth-box h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            color: #2c3e50;
+            font-weight: 500;
+            font-size: 0.9em;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .success-message {
+            background: #dcfce7;
+            color: #16a34a;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .btn.primary {
+            background: #2c3e50;
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn.primary:hover {
+            background: #1a252f;
+            transform: translateY(-2px);
+        }
+
+        .auth-links {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            text-align: center;
+        }
+
+        .auth-links a {
+            color: #3498db;
+            text-decoration: none;
+            font-size: 0.9em;
+            transition: color 0.3s ease;
+        }
+
+        .auth-links a:hover {
+            color: #2980b9;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .auth-box {
+                padding: 30px 20px;
+            }
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -108,17 +256,19 @@ try {
                 <li><a href="/tbcph/public/about.php">About</a></li>
                 <li><a href="/tbcph/public/buskers.php">Buskers</a></li>
                 <li><a href="/tbcph/public/contact.php">Contact</a></li>
-                <?php if(isset($_SESSION['user_type'])): ?>
-                    <?php if($_SESSION['user_type'] == 'admin'): ?>
-                        <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
-                    <?php elseif($_SESSION['user_type'] == 'busker'): ?>
-                        <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
-                    <?php elseif($_SESSION['user_type'] == 'client'): ?>
-                        <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
-                    <?php endif; ?>
-                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
+                <?php if(isset($_SESSION['busker_id'])): ?>
+                    <li><a href="/tbcph/busker/dashboard.php">My Dashboard</a></li>
+                    <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
+                    <li><a href="/tbcph/includes/logout.php?type=busker">Logout</a></li>
+                <?php elseif(isset($_SESSION['client_id'])): ?>
+                    <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
+                    <li><a href="/tbcph/client/profile.php">My Profile</a></li>
+                    <li><a href="/tbcph/includes/logout.php?type=client">Logout</a></li>
+                <?php elseif(isset($_SESSION['admin_email'])): ?>
+                    <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
+                    <li><a href="/tbcph/includes/logout.php?type=admin">Logout</a></li>
                 <?php else: ?>
-                    <li><a href="/tbcph/client/index.php">Client Login</a></li>
+                    <li><a href="/tbcph/busker/register.php">Register as Busker</a></li>
                     <li><a href="/tbcph/busker/index.php">Busker Login</a></li>
                 <?php endif; ?>
             </ul>
@@ -126,171 +276,83 @@ try {
     </header>
 
     <main>
-        <div class="register-container">
-            <h1>Register as Busker</h1>
-            
-            <?php if ($error): ?>
-                <div class="error-message"><?php echo $error; ?></div>
-            <?php endif; ?>
-            
-            <?php if ($success): ?>
-                <div class="success-message"><?php echo $success; ?></div>
-            <?php endif; ?>
+        <div class="auth-container">
+            <div class="auth-box">
+                <h1>Busker Registration</h1>
+                
+                <?php if ($error): ?>
+                    <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
+                <?php endif; ?>
 
-            <form method="POST" class="register-form">
-                <div class="form-group">
-                    <label for="band_name">Band/Artist Name</label>
-                    <input type="text" id="band_name" name="band_name" required>
-                </div>
+                <?php if ($success): ?>
+                    <div class="success-message"><?php echo htmlspecialchars($success); ?></div>
+                <?php endif; ?>
 
-                <div class="form-group">
-                    <label for="name">Full Name</label>
-                    <input type="text" id="name" name="name" required>
-                </div>
+                <form method="POST" class="auth-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="name">Full Name *</label>
+                            <input type="text" id="name" name="name" value="<?php echo htmlspecialchars($formData['name']); ?>" required>
+                        </div>
 
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="contact_number">Contact Number</label>
-                    <input type="tel" id="contact_number" name="contact_number" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="address">Address</label>
-                    <textarea id="address" name="address" required></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="birthday">Birthday</label>
-                    <input type="date" id="birthday" name="birthday" required>
-                </div>
-
-                <div class="form-group">
-                    <label>Genres</label>
-                    <div class="genre-checkboxes">
-                        <?php foreach ($genres as $genre): ?>
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="genres[]" value="<?php echo $genre['genre_id']; ?>">
-                                <?php echo htmlspecialchars($genre['name']); ?>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="has_equipment" name="has_equipment">
-                        I have my own equipment
-                    </label>
-                </div>
-
-                <div id="equipment-section" style="display: none;">
-                    <h3>Equipment Details</h3>
-                    <div id="equipment-list">
-                        <div class="equipment-item">
-                            <div class="form-group">
-                                <label>Equipment Name</label>
-                                <input type="text" name="equipment[0][name]">
-                            </div>
-                            <div class="form-group">
-                                <label>Quantity</label>
-                                <input type="number" name="equipment[0][quantity]" value="1" min="1">
-                            </div>
-                            <div class="form-group">
-                                <label>Condition</label>
-                                <select name="equipment[0][condition]">
-                                    <option value="Excellent">Excellent</option>
-                                    <option value="Good">Good</option>
-                                    <option value="Fair">Fair</option>
-                                </select>
-                            </div>
+                        <div class="form-group">
+                            <label for="email">Email Address *</label>
+                            <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($formData['email']); ?>" required>
                         </div>
                     </div>
-                    <button type="button" id="add-equipment" class="btn secondary">Add More Equipment</button>
-                </div>
 
-                <button type="submit" class="btn primary">Register</button>
-            </form>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="phone">Contact Number</label>
+                            <input type="tel" id="phone" name="phone" value="<?php echo htmlspecialchars($formData['phone']); ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="birthday">Birthday</label>
+                            <input type="date" id="birthday" name="birthday" value="<?php echo htmlspecialchars($formData['birthday']); ?>">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="band_name">Band Name (if applicable)</label>
+                        <input type="text" id="band_name" name="band_name" value="<?php echo htmlspecialchars($formData['band_name']); ?>">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="address">Address</label>
+                        <textarea id="address" name="address"><?php echo htmlspecialchars($formData['address']); ?></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="has_equipment" name="has_equipment" <?php echo $formData['has_equipment'] ? 'checked' : ''; ?>>
+                            <label for="has_equipment">I have my own equipment</label>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="password">Password *</label>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirm_password">Confirm Password *</label>
+                            <input type="password" id="confirm_password" name="confirm_password" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn primary">Register</button>
+                </form>
+
+                <div class="auth-links">
+                    <a href="index.php">Already have an account? Login here</a>
+                    <a href="/tbcph/public/index.php">Back to Home</a>
+                </div>
+            </div>
         </div>
     </main>
 
-    <footer>
-        <div class="footer-content">
-            <div class="footer-section">
-                <h3>Contact Us</h3>
-                <p>Email: info@tbcph.com</p>
-                <p>Phone: (123) 456-7890</p>
-            </div>
-            <div class="footer-section">
-                <h3>Quick Links</h3>
-                <ul>
-                    <li><a href="/tbcph/public/about.php">About Us</a></li>
-                    <li><a href="/tbcph/public/buskers.php">Our Buskers</a></li>
-                    <li><a href="/tbcph/public/contact.php">Contact</a></li>
-                </ul>
-            </div>
-            <div class="footer-section">
-                <h3>Follow Us</h3>
-                <div class="social-links">
-                    <a href="#">Facebook</a>
-                    <a href="#">Instagram</a>
-                    <a href="#">Twitter</a>
-                </div>
-            </div>
-        </div>
-        <div class="footer-bottom">
-            <p>&copy; <?php echo date('Y'); ?> The Busking Community PH. All rights reserved.</p>
-        </div>
-    </footer>
-
-    <script>
-        // Show/hide equipment section
-        document.getElementById('has_equipment').addEventListener('change', function() {
-            document.getElementById('equipment-section').style.display = 
-                this.checked ? 'block' : 'none';
-        });
-
-        // Add equipment fields
-        let equipmentCount = 1;
-        document.getElementById('add-equipment').addEventListener('click', function() {
-            const equipmentList = document.getElementById('equipment-list');
-            const newEquipment = document.createElement('div');
-            newEquipment.className = 'equipment-item';
-            newEquipment.innerHTML = `
-                <div class="form-group">
-                    <label>Equipment Name</label>
-                    <input type="text" name="equipment[${equipmentCount}][name]">
-                </div>
-                <div class="form-group">
-                    <label>Quantity</label>
-                    <input type="number" name="equipment[${equipmentCount}][quantity]" value="1" min="1">
-                </div>
-                <div class="form-group">
-                    <label>Condition</label>
-                    <select name="equipment[${equipmentCount}][condition]">
-                        <option value="Excellent">Excellent</option>
-                        <option value="Good">Good</option>
-                        <option value="Fair">Fair</option>
-                    </select>
-                </div>
-                <button type="button" class="btn secondary remove-equipment">Remove</button>
-            `;
-            equipmentList.appendChild(newEquipment);
-            equipmentCount++;
-
-            // Add remove functionality
-            newEquipment.querySelector('.remove-equipment').addEventListener('click', function() {
-                equipmentList.removeChild(newEquipment);
-            });
-        });
-    </script>
+    <?php include __DIR__ . '/../includes/footer.php'; ?>
 </body>
 </html>  
