@@ -7,36 +7,50 @@ if (!isset($_SESSION['admin_email'])) {
     exit();
 }
 
-$success = $error = '';
+$error = '';
+$success = '';
 
-try {
-    // Handle busker status updates
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['busker_id'], $_POST['action'])) {
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['action']) && isset($_POST['busker_id'])) {
         $busker_id = $_POST['busker_id'];
         $action = $_POST['action'];
-        $new_status = ($action === 'approve') ? 'active' : 'rejected';
-
-        $stmt = $conn->prepare("UPDATE busker SET status = ? WHERE busker_id = ?");
-        if ($stmt->execute([$new_status, $busker_id])) {
-            $success = "Busker status updated successfully.";
-        } else {
-            $error = "Failed to update busker status.";
+        
+        try {
+            if ($action === 'approve') {
+                $stmt = $conn->prepare("UPDATE busker SET status = 'active' WHERE busker_id = ?");
+                $stmt->execute([$busker_id]);
+                $success = "Busker registration has been approved.";
+            } elseif ($action === 'reject') {
+                $stmt = $conn->prepare("UPDATE busker SET status = 'rejected' WHERE busker_id = ?");
+                $stmt->execute([$busker_id]);
+                $success = "Busker registration has been rejected.";
+            }
+            
+            // Redirect to prevent form resubmission
+            header("Location: pending_buskers.php");
+            exit();
+        } catch (PDOException $e) {
+            error_log("Busker status update error: " . $e->getMessage());
+            $error = "An error occurred while updating busker status.";
         }
     }
+}
 
-    // Get pending buskers
-    $stmt = $conn->prepare("
-        SELECT b.*, GROUP_CONCAT(g.name) as genres
+try {
+    // Get pending busker registrations
+    $stmt = $conn->query("
+        SELECT b.*, 
+               GROUP_CONCAT(g.name) as genres,
+               DATE_FORMAT(b.registration_date, '%M %d, %Y') as formatted_date
         FROM busker b
         LEFT JOIN busker_genre bg ON b.busker_id = bg.busker_id
         LEFT JOIN genre g ON bg.genre_id = g.genre_id
         WHERE b.status = 'pending'
         GROUP BY b.busker_id
-        ORDER BY b.busker_id DESC
+        ORDER BY b.registration_date DESC
     ");
-    $stmt->execute();
     $pending_buskers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 } catch (PDOException $e) {
     error_log("Pending buskers error: " . $e->getMessage());
     $error = "An error occurred while fetching pending buskers.";
@@ -48,7 +62,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pending Busker Registrations - TBCPH</title>
+    <title>Pending Buskers - TBCPH</title>
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
     <style>
         .pending-buskers-container {
@@ -92,85 +106,35 @@ try {
             color: #2c3e50;
         }
 
-        .alert {
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-        }
-
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .busker-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .busker-card {
+        .table-container {
             background: white;
             border-radius: 10px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            transition: transform 0.3s ease;
+            overflow-x: auto;
+            margin-top: 20px;
         }
 
-        .busker-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        .busker-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
         }
 
-        .busker-name {
-            font-size: 1.5em;
-            color: #2c3e50;
-            margin-bottom: 10px;
+        .busker-table th,
+        .busker-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
         }
 
-        .busker-band {
-            color: #666;
-            font-size: 1.1em;
-            margin-bottom: 15px;
-        }
-
-        .busker-info {
-            margin-bottom: 15px;
-        }
-
-        .info-item {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 8px;
-            color: #666;
-        }
-
-        .info-label {
+        .busker-table th {
+            background: #f8f9fa;
             font-weight: 600;
             color: #2c3e50;
-            min-width: 100px;
         }
 
-        .busker-genres {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-
-        .genre-tag {
-            background: #e9ecef;
-            color: #2c3e50;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.9em;
+        .busker-table tr:hover {
+            background: #f8f9fa;
         }
 
         .action-buttons {
@@ -179,16 +143,24 @@ try {
         }
 
         .btn {
-            flex: 1;
             padding: 8px 16px;
             border: none;
             border-radius: 6px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.3s ease;
-            text-align: center;
             text-decoration: none;
+            text-align: center;
             font-size: 0.9em;
+        }
+
+        .btn-view {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-view:hover {
+            background: #138496;
         }
 
         .btn-approve {
@@ -209,13 +181,26 @@ try {
             background: #c82333;
         }
 
-        .no-buskers {
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .text-center {
             text-align: center;
-            padding: 40px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            color: #666;
         }
 
         @media (max-width: 768px) {
@@ -229,12 +214,12 @@ try {
                 text-align: center;
             }
 
-            .busker-grid {
-                grid-template-columns: 1fr;
-            }
-
             .action-buttons {
                 flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
             }
         }
     </style>
@@ -268,72 +253,58 @@ try {
                 </a>
             </div>
 
-            <?php if ($success): ?>
-                <div class="alert alert-success"><?php echo $success; ?></div>
-            <?php endif; ?>
-
             <?php if ($error): ?>
                 <div class="alert alert-error"><?php echo $error; ?></div>
             <?php endif; ?>
 
-            <?php if (empty($pending_buskers)): ?>
-                <div class="no-buskers">
-                    <h2>No Pending Registrations</h2>
-                    <p>There are currently no busker registrations awaiting approval.</p>
-                </div>
-            <?php else: ?>
-                <div class="busker-grid">
-                    <?php foreach ($pending_buskers as $busker): ?>
-                        <div class="busker-card">
-                            <h2 class="busker-name"><?php echo htmlspecialchars($busker['name']); ?></h2>
-                            <?php if ($busker['band_name']): ?>
-                                <div class="busker-band"><?php echo htmlspecialchars($busker['band_name']); ?></div>
-                            <?php endif; ?>
-
-                            <div class="busker-info">
-                                <div class="info-item">
-                                    <span class="info-label">Email:</span>
-                                    <span><?php echo htmlspecialchars($busker['email']); ?></span>
-                                </div>
-                                <div class="info-item">
-                                    <span class="info-label">Phone:</span>
-                                    <span><?php echo htmlspecialchars($busker['contact_number']); ?></span>
-                                </div>
-                                <div class="info-item">
-                                    <span class="info-label">Address:</span>
-                                    <span><?php echo htmlspecialchars($busker['address']); ?></span>
-                                </div>
-                                <div class="info-item">
-                                    <span class="info-label">Birthday:</span>
-                                    <span><?php echo htmlspecialchars($busker['birthday']); ?></span>
-                                </div>
-                                <div class="info-item">
-                                    <span class="info-label">Equipment:</span>
-                                    <span><?php echo $busker['has_equipment'] ? 'Yes' : 'No'; ?></span>
-                                </div>
-                            </div>
-
-                            <?php if ($busker['genres']): ?>
-                                <div class="busker-genres">
-                                    <?php foreach (explode(',', $busker['genres']) as $genre): ?>
-                                        <span class="genre-tag"><?php echo htmlspecialchars($genre); ?></span>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
-
-                            <form method="POST" action="" class="action-buttons">
-                                <input type="hidden" name="busker_id" value="<?php echo $busker['busker_id']; ?>">
-                                <button type="submit" name="action" value="approve" class="btn btn-approve">
-                                    Approve
-                                </button>
-                                <button type="submit" name="action" value="reject" class="btn btn-reject">
-                                    Reject
-                                </button>
-                            </form>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
+            <?php if ($success): ?>
+                <div class="alert alert-success"><?php echo $success; ?></div>
             <?php endif; ?>
+
+            <div class="table-container">
+                <table class="busker-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Contact</th>
+                            <th>Band Name</th>
+                            <th>Registration Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($pending_buskers)): ?>
+                            <tr>
+                                <td colspan="6" class="text-center">No pending registrations</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($pending_buskers as $busker): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($busker['name']); ?></td>
+                                    <td><?php echo htmlspecialchars($busker['email']); ?></td>
+                                    <td><?php echo htmlspecialchars($busker['contact_number']); ?></td>
+                                    <td><?php echo htmlspecialchars($busker['band_name'] ?? 'N/A'); ?></td>
+                                    <td><?php echo htmlspecialchars($busker['formatted_date']); ?></td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <a href="view_busker.php?id=<?php echo $busker['busker_id']; ?>" class="btn btn-view">View</a>
+                                            <form method="POST" action="pending_buskers.php" style="display: inline;">
+                                                <input type="hidden" name="busker_id" value="<?php echo $busker['busker_id']; ?>">
+                                                <button type="submit" name="action" value="approve" class="btn btn-approve">Approve</button>
+                                            </form>
+                                            <form method="POST" action="pending_buskers.php" style="display: inline;">
+                                                <input type="hidden" name="busker_id" value="<?php echo $busker['busker_id']; ?>">
+                                                <button type="submit" name="action" value="reject" class="btn btn-reject">Reject</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </main>
 

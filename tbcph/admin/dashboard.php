@@ -36,12 +36,13 @@ try {
     ");
     $recent_inquiries = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Pending busker registrations
+    // Get pending busker registrations
     $stmt = $conn->query("
-        SELECT busker_id, name, email, contact_number, band_name
-        FROM busker
-        WHERE status = 'pending'
-        ORDER BY busker_id DESC
+        SELECT b.*, 
+               DATE_FORMAT(b.registration_date, '%M %d, %Y') as formatted_date
+        FROM busker b 
+        WHERE b.status = 'pending' 
+        ORDER BY b.registration_date DESC
     ");
     $pending_buskers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -256,6 +257,57 @@ try {
                 overflow-x: auto;
             }
         }
+
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        .dashboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        .dashboard-table th,
+        .dashboard-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .dashboard-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .dashboard-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-header h2 {
+            margin: 0;
+        }
+
+        .section-header .btn {
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -294,53 +346,57 @@ try {
             <div class="stats-grid">
                 <div class="stat-card">
                     <h3>Total Buskers</h3>
-                    <div class="number"><?php echo $total_buskers; ?></div>
+                    <p><?php echo $total_buskers; ?></p>
                 </div>
                 <div class="stat-card">
                     <h3>Active Buskers</h3>
-                    <div class="number"><?php echo $active_buskers; ?></div>
+                    <p><?php echo $active_buskers; ?></p>
                 </div>
                 <div class="stat-card">
                     <h3>Total Clients</h3>
-                    <div class="number"><?php echo $total_clients; ?></div>
+                    <p><?php echo $total_clients; ?></p>
                 </div>
                 <div class="stat-card">
                     <h3>Total Inquiries</h3>
-                    <div class="number"><?php echo $total_inquiries; ?></div>
+                    <p><?php echo $total_inquiries; ?></p>
                 </div>
             </div>
 
-            <div class="dashboard-section">
+            <div class="section">
                 <div class="section-header">
-                    <h2 class="section-title">Pending Busker Registrations</h2>
-                    <a href="manage_buskers.php" class="view-all">View All</a>
+                    <h2>Pending Busker Registrations</h2>
+                    <a href="pending_buskers.php" class="btn btn-primary">View All</a>
                 </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Contact</th>
-                            <th>Band Name</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($pending_buskers as $busker): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($busker['name']); ?></td>
-                            <td><?php echo htmlspecialchars($busker['email']); ?></td>
-                            <td><?php echo htmlspecialchars($busker['contact_number']); ?></td>
-                            <td><?php echo htmlspecialchars($busker['band_name']); ?></td>
-                            <td>
-                                <a href="approve_busker.php?id=<?php echo $busker['busker_id']; ?>" class="action-btn approve-btn">Approve</a>
-                                <a href="reject_busker.php?id=<?php echo $busker['busker_id']; ?>" class="action-btn reject-btn">Reject</a>
-                                <a href="view_busker.php?id=<?php echo $busker['busker_id']; ?>" class="action-btn view-btn">View</a>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <div class="table-container">
+                    <table class="dashboard-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Contact</th>
+                                <th>Band Name</th>
+                                <th>Registration Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($pending_buskers)): ?>
+                                <tr>
+                                    <td colspan="5" class="text-center">No pending registrations</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($pending_buskers as $busker): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($busker['name']); ?></td>
+                                        <td><?php echo htmlspecialchars($busker['email']); ?></td>
+                                        <td><?php echo htmlspecialchars($busker['contact_number']); ?></td>
+                                        <td><?php echo htmlspecialchars($busker['band_name'] ?? 'N/A'); ?></td>
+                                        <td><?php echo $busker['formatted_date'] ?? 'N/A'; ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="dashboard-section">
