@@ -155,7 +155,14 @@ try {
             e.description,
             GROUP_CONCAT(g.name) as genres,
             GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
-            GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links
+            GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links,
+            h.busker_id as hired_busker_id,
+            b.band_name as hired_busker_band_name,
+            b.name as hired_busker_name,
+            b.contact_number as busker_contact,
+            b.email as busker_email,
+            GROUP_CONCAT(DISTINCT bg.name) as busker_genres,
+            GROUP_CONCAT(DISTINCT be.equipment_name) as busker_equipment
         FROM inquiry i
         JOIN event_table e ON i.event_id = e.event_id
         LEFT JOIN location l ON e.location_id = l.location_id
@@ -164,6 +171,11 @@ try {
         LEFT JOIN genre g ON ig.genre_id = g.genre_id
         LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
         LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
+        LEFT JOIN hire h ON i.inquiry_id = h.inquiry_id
+        LEFT JOIN busker b ON h.busker_id = b.busker_id
+        LEFT JOIN busker_genre bg2 ON b.busker_id = bg2.busker_id
+        LEFT JOIN genre bg ON bg2.genre_id = bg.genre_id
+        LEFT JOIN busker_equipment be ON b.busker_id = be.busker_id
         WHERE i.client_id = ? AND i.inquiry_status != 'deleted by client'
         GROUP BY i.inquiry_id
         ORDER BY e.event_date DESC
@@ -436,40 +448,147 @@ if (isset($_SESSION['error'])) {
 
         .modal-action-btns {
             display: flex;
-            gap: 16px;
-            margin-top: 24px;
+            gap: 12px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .modal-action-btns .btn {
+            flex: 1;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: center;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 160px;
         }
 
         .btn-edit {
             background: #f39c12;
-            color: #fff;
+            color: white;
             border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            padding: 10px 24px;
-            font-size: 1em;
-            transition: background 0.2s;
         }
 
-        .btn-edit:hover, .btn-edit:focus {
-            background: #c87f0a;
-            color: #fff;
+        .btn-edit:hover {
+            background: #d68910;
+            color: white;
         }
 
         .btn-delete {
             background: #e74c3c;
-            color: #fff;
+            color: white;
             border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            padding: 10px 24px;
-            font-size: 1em;
-            transition: background 0.2s;
         }
 
-        .btn-delete:hover, .btn-delete:focus {
-            background: #b71c1c;
-            color: #fff;
+        .btn-delete:hover {
+            background: #c0392b;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+            border: none;
+        }
+
+        .btn-warning:hover {
+            background: #d68910;
+            color: white;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: #217dbb;
+            color: white;
+        }
+
+        .detail-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .detail-section h3 {
+            color: #2c3e50;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .detail-section p {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: baseline;
+        }
+
+        .detail-section strong {
+            min-width: 150px;
+            color: #495057;
+        }
+
+        .document-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .document-item {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .document-item a {
+            color: #3498db;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .document-item a:hover {
+            color: #217dbb;
+        }
+
+        .document-item i {
+            color: #6c757d;
+        }
+
+        .modal-content {
+            max-width: 800px;
+            width: 90%;
+        }
+
+        .busker-info {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+
+        .busker-info p {
+            margin-bottom: 10px;
+        }
+
+        .busker-info .badge {
+            font-size: 0.9em;
+            padding: 5px 10px;
         }
     </style>
 </head>
@@ -505,6 +624,7 @@ if (isset($_SESSION['error'])) {
                             <th>Date</th>
                             <th>Time</th>
                             <th>Budget</th>
+                            <th>Hired Busker</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -523,6 +643,13 @@ if (isset($_SESSION['error'])) {
                                     <td><?php echo $inquiry['time_slot'] ? date('g:i A', strtotime($inquiry['time_slot'])) : 'Not set'; ?></td>
                                     <td>₱<?php echo number_format($inquiry['budget']); ?></td>
                                     <td>
+                                        <?php if ($inquiry['hired_busker_id']): ?>
+                                            <?php echo htmlspecialchars($inquiry['hired_busker_band_name'] ?: $inquiry['hired_busker_name']); ?>
+                                        <?php else: ?>
+                                            <a href="../public/select_busker.php?inquiry_id=<?php echo $inquiry['inquiry_id']; ?>" class="btn btn-primary btn-sm">Choose Busker</a>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
                                     <span class="status-badge <?php echo strtolower($inquiry['inquiry_status']); ?>">
                                         <?php echo ucfirst($inquiry['inquiry_status']); ?>
                                     </span>
@@ -530,7 +657,7 @@ if (isset($_SESSION['error'])) {
                                     <td>
                                         <div class="action-buttons">
                                             <button class="btn-view" onclick="viewInquiry(<?php echo htmlspecialchars(json_encode($inquiry)); ?>)">View</button>
-                            </div>
+                                        </div>
                                     </td>
                                 </tr>
                         <?php endforeach; ?>
@@ -660,46 +787,85 @@ if (isset($_SESSION['error'])) {
             const actionBtns = document.getElementById('modalActionBtns');
             content.innerHTML = `
                 <div class="detail-section">
-                    <h3>Event Information</h3>
+                    <h3><i class="fas fa-calendar-alt"></i> Event Information</h3>
                     <p><strong>Event Name:</strong> ${inquiry.event_name}</p>
                     <p><strong>Event Type:</strong> ${inquiry.event_type}</p>
-                    <p><strong>Event Date:</strong> ${inquiry.event_date}</p>
-                    <p><strong>Time Slot:</strong> ${inquiry.time_slot || 'Not set'}</p>
+                    <p><strong>Event Date:</strong> ${new Date(inquiry.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <p><strong>Time Slot:</strong> ${inquiry.time_slot ? new Date('1970-01-01T' + inquiry.time_slot).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
                 </div>
+
                 <div class="detail-section">
-                    <h3>Location</h3>
-                    <p><strong>Address:</strong> ${inquiry.address}</p>
-                    <p><strong>City:</strong> ${inquiry.city}</p>
+                    <h3><i class="fas fa-map-marker-alt"></i> Location</h3>
+                    <p><strong>Address:</strong> ${inquiry.address || 'Not specified'}</p>
+                    <p><strong>City:</strong> ${inquiry.city || 'Not specified'}</p>
                 </div>
+
                 <div class="detail-section">
-                    <h3>Budget and Status</h3>
-                    <p><strong>Budget:</strong> ₱${inquiry.budget}</p>
+                    <h3><i class="fas fa-info-circle"></i> Budget and Status</h3>
+                    <p><strong>Budget:</strong> ₱${Number(inquiry.budget).toLocaleString()}</p>
                     <p><strong>Status:</strong> <span class="status-badge ${inquiry.inquiry_status.toLowerCase()}">${inquiry.inquiry_status}</span></p>
                 </div>
+
                 <div class="detail-section">
-                    <h3>Preferred Genres</h3>
-                    <p>${inquiry.genres || 'None selected'}</p>
+                    <h3><i class="fas fa-music"></i> Preferred Genres</h3>
+                    <p>${inquiry.genres ? inquiry.genres.split(',').map(genre => `<span class="badge bg-primary me-2">${genre}</span>`).join('') : 'None selected'}</p>
                 </div>
+
                 <div class="detail-section">
-                    <h3>Venue Equipment</h3>
+                    <h3><i class="fas fa-tools"></i> Venue Equipment</h3>
                     <p>${inquiry.venue_equipment || 'None specified'}</p>
                 </div>
+
                 <div class="detail-section">
-                    <h3>Supporting Documents</h3>
+                    <h3><i class="fas fa-user-music"></i> Chosen Busker</h3>
+                    ${inquiry.hired_busker_id ? `
+                        <div class="busker-info">
+                            <p><strong>Name:</strong> ${inquiry.hired_busker_band_name || inquiry.hired_busker_name}</p>
+                            <p><strong>Contact:</strong> ${inquiry.busker_contact}</p>
+                            <p><strong>Email:</strong> ${inquiry.busker_email}</p>
+                            ${inquiry.busker_genres ? `
+                                <p><strong>Genres:</strong> ${inquiry.busker_genres.split(',').map(genre => `<span class="badge bg-info me-2">${genre}</span>`).join('')}</p>
+                            ` : ''}
+                            ${inquiry.busker_equipment ? `
+                                <p><strong>Equipment:</strong> ${inquiry.busker_equipment.split(',').map(eq => `<span class="badge bg-secondary me-2">${eq}</span>`).join('')}</p>
+                            ` : ''}
+                        </div>
+                    ` : '<p>No busker chosen yet</p>'}
+                </div>
+
+                <div class="detail-section">
+                    <h3><i class="fas fa-file-alt"></i> Supporting Documents</h3>
                     <div class="document-list">
                         ${inquiry.doc_links ? inquiry.doc_links.split(',').map((link, index) => `
                             <div class="document-item">
-                                <a href="../${link}" target="_blank">Document ${index + 1}</a>
+                                <a href="../${link}" target="_blank">
+                                    <i class="fas fa-file-pdf"></i>
+                                    Document ${index + 1}
+                                </a>
                             </div>
-                        `).join('') : 'No documents uploaded'}
+                        `).join('') : '<p>No documents uploaded</p>'}
                     </div>
                 </div>
             `;
+
             // Show Edit/Delete if pending
             if (inquiry.inquiry_status.toLowerCase() === 'pending') {
                 actionBtns.innerHTML = `
-                    <button class="btn-edit" onclick='editInquiry(${JSON.stringify(inquiry)})'>Edit</button>
-                    <button class="btn-delete" onclick='deleteInquiry(${inquiry.inquiry_id})'>Delete Inquiry</button>
+                    <button class="btn btn-edit" onclick='editInquiry(${JSON.stringify(inquiry)})'>
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    ${inquiry.hired_busker_id ? `
+                        <a href="../public/select_busker.php?inquiry_id=${inquiry.inquiry_id}" class="btn btn-warning">
+                            <i class="fas fa-exchange-alt"></i> Change Busker
+                        </a>
+                    ` : `
+                        <a href="../public/select_busker.php?inquiry_id=${inquiry.inquiry_id}" class="btn btn-primary">
+                            <i class="fas fa-user-plus"></i> Choose Busker
+                        </a>
+                    `}
+                    <button class="btn btn-delete" onclick='deleteInquiry(${inquiry.inquiry_id})'>
+                        <i class="fas fa-trash"></i> Delete Inquiry
+                    </button>
                 `;
             } else {
                 actionBtns.innerHTML = '';

@@ -1,176 +1,95 @@
 <?php
 require_once '../includes/config.php';
 
-// Check if inquiry data exists in session
-if (!isset($_SESSION['temp_inquiry_data'])) {
-    header('Location: contact.php');
-    exit();
+// Check if user is logged in and is a client
+if (!isset($_SESSION['client_id'])) {
+    redirect('/tbcph/client/index.php');
 }
 
-$temp_inquiry_data = $_SESSION['temp_inquiry_data'];
-$error = '';
-$success = '';
+// Check if inquiry_id is provided
+if (!isset($_GET['inquiry_id'])) {
+    redirect('/tbcph/client/dashboard.php');
+}
 
-// Handle busker selection and final inquiry submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['select_busker'])) {
-    if (!isset($_SESSION['client_id'])) {
-        $error = 'Please log in as a client to finalize your inquiry.';
+$inquiry_id = (int)$_GET['inquiry_id'];
+
+// Verify that this inquiry belongs to the logged-in client
+$stmt = $conn->prepare("SELECT i.*, e.event_name, e.event_date 
+                       FROM inquiry i 
+                       JOIN event_table e ON i.event_id = e.event_id 
+                       WHERE i.inquiry_id = ? AND i.client_id = ?");
+$stmt->execute([$inquiry_id, $_SESSION['client_id']]);
+$inquiry = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$inquiry) {
+    redirect('/tbcph/client/dashboard.php');
+}
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['skip']) || !isset($_POST['busker_id'])) {
+        // Update inquiry status to indicate no busker selected yet
+        $stmt = $conn->prepare("UPDATE inquiry SET inquiry_status = 'pending' WHERE inquiry_id = ?");
+        $stmt->execute([$inquiry_id]);
+        redirectWithMessage('/tbcph/client/dashboard.php', 'You can select a busker later.', 'info');
     } else {
-        $selected_busker_id = $_POST['busker_id'];
-        $client_id = $_SESSION['client_id'];
-
-        try {
-            $conn->beginTransaction();
-
-            // 1. Handle Location (insert custom or use existing)
-            $location_id = null;
-            if ($temp_inquiry_data['location_type'] === 'custom') {
-                $stmt = $conn->prepare("
-                    INSERT INTO location (address, city, region)
-                    VALUES (?, ?, ?)
-                ");
-                $stmt->execute([
-                    $temp_inquiry_data['custom_address'],
-                    $temp_inquiry_data['custom_city'],
-                    $temp_inquiry_data['custom_region']
-                ]);
-                $location_id = $conn->lastInsertId();
-            } else {
-                // Cast to int to ensure it's a valid integer ID
-                $location_id = (int)$temp_inquiry_data['location_id'];
-                // Add a check to ensure it's not 0 if it's supposed to be an existing location
-                if ($location_id === 0) {
-                     throw new Exception("Invalid existing location selected. Location ID was 0.");
-                }
+        $busker_id = (int)$_POST['busker_id'];
+        
+        // Verify busker exists and is active
+        $stmt = $conn->prepare("SELECT * FROM busker WHERE busker_id = ? AND status = 'active'");
+        $stmt->execute([$busker_id]);
+        $busker = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$busker) {
+            $error = 'Invalid busker selection.';
+        } else {
+            try {
+                $conn->beginTransaction();
+                
+                // Create hire record
+                $stmt = $conn->prepare("INSERT INTO hire (inquiry_id, busker_id, payment_status) VALUES (?, ?, 'pending')");
+                $stmt->execute([$inquiry_id, $busker_id]);
+                
+                // Update inquiry status
+                $stmt = $conn->prepare("UPDATE inquiry SET inquiry_status = 'busker selected' WHERE inquiry_id = ?");
+                $stmt->execute([$inquiry_id]);
+                
+                $conn->commit();
+                redirectWithMessage('/tbcph/client/dashboard.php', 'Busker selected successfully!', 'success');
+            } catch(Exception $e) {
+                $conn->rollBack();
+                error_log("Error selecting busker: " . $e->getMessage());
+                $error = 'An error occurred while selecting the busker. Please try again.';
             }
-
-            // --- TEMPORARY DEBUGGING: Log location_id before event_table insert ---
-            error_log("Debugging location_id before event_table insert: " . $location_id);
-            // ----------------------------------------------------------------------
-
-            // 2. Insert Event Details
-            $stmt = $conn->prepare("
-                INSERT INTO event_table (
-                    event_name, event_type, event_date, time_slot_id, 
-                    location_id, venue_equipment, description
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([
-                $temp_inquiry_data['event_name'],
-                $temp_inquiry_data['event_type'],
-                $temp_inquiry_data['event_date'],
-                $temp_inquiry_data['time_slot_id'],
-                $location_id,
-                $temp_inquiry_data['venue_equipment'],
-                $temp_inquiry_data['description']
-            ]);
-            $eventId = $conn->lastInsertId();
-
-            // 3. Insert Inquiry
-            $stmt = $conn->prepare("
-                INSERT INTO inquiry (
-                    client_id, event_id, budget, inquiry_status
-                ) VALUES (?, ?, ?, 'pending')
-            ");
-            $stmt->execute([
-                $client_id,
-                $eventId,
-                $temp_inquiry_data['budget']
-            ]);
-            $inquiryId = $conn->lastInsertId();
-
-            // 4. Handle Supporting Documents
-            if (!empty($temp_inquiry_data['files'])) {
-                foreach ($temp_inquiry_data['files'] as $doc_link) {
-                    // Insert document
-                    $stmt = $conn->prepare("INSERT INTO supporting_document (doc_link) VALUES (?)");
-                    $stmt->execute([$doc_link]);
-                    $doc_id = $conn->lastInsertId();
-
-                    // Link document to inquiry
-                    $stmt = $conn->prepare("INSERT INTO inquiry_document (inquiry_id, docs_id) VALUES (?, ?)");
-                    $stmt->execute([$inquiryId, $doc_id]);
-                }
-            }
-
-            // 5. Insert Genres
-            if (!empty($temp_inquiry_data['genres'])) {
-                $stmt = $conn->prepare("
-                    INSERT INTO inquiry_genre (inquiry_id, genre_id)
-                    VALUES (?, ?)
-                ");
-                foreach ($temp_inquiry_data['genres'] as $genreId) {
-                    $stmt->execute([$inquiryId, $genreId]);
-                }
-            }
-
-            // 6. Insert Hire Record (linking inquiry to selected busker)
-            $stmt = $conn->prepare("
-                INSERT INTO hire (inquiry_id, busker_id, payment_status)
-                VALUES (?, ?, 'Pending')
-            ");
-            $stmt->execute([$inquiryId, $selected_busker_id]);
-
-            $conn->commit();
-            unset($_SESSION['temp_inquiry_data']); // Clear session data
-            $_SESSION['success'] = 'Your inquiry has been submitted successfully! We will contact you shortly.';
-            header('Location: ../client/dashboard.php');
-            exit();
-
-        } catch(PDOException $e) {
-            $conn->rollBack();
-            error_log("Error finalizing inquiry (PDO): " . $e->getMessage());
-            $error = 'An error occurred while finalizing your inquiry (PDO). Please try again. Error: ' . $e->getMessage();
-        } catch(Exception $e) {
-            $conn->rollBack(); // Ensure rollback if a non-PDO exception occurs after transaction starts
-            error_log("Error finalizing inquiry (General): " . $e->getMessage());
-            $error = 'An error occurred while finalizing your inquiry (General). Please try again. Error: ' . $e->getMessage();
         }
     }
 }
 
-// Fetch active buskers with their genres and equipment
-try {
-    $filter_genre_id = isset($_GET['genre_id']) ? (int)$_GET['genre_id'] : null;
-    $buskers_query = "
-        SELECT 
-            b.busker_id, 
-            b.band_name, 
-            b.name, 
-            GROUP_CONCAT(DISTINCT g.name) AS genres, 
-            GROUP_CONCAT(DISTINCT be.equipment_name) AS equipment
-        FROM busker b
-        LEFT JOIN busker_genre bg ON b.busker_id = bg.busker_id
-        LEFT JOIN genre g ON bg.genre_id = g.genre_id
-        LEFT JOIN busker_equipment be ON b.busker_id = be.busker_id
-        WHERE b.status = 'active'
-    ";
-    
-    $params = [];
+// Get all genres for filter
+$stmt = $conn->prepare("SELECT * FROM genre ORDER BY name");
+$stmt->execute();
+$genres = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if ($filter_genre_id) {
-        $buskers_query .= " AND bg.genre_id = ?";
-        $params[] = $filter_genre_id;
-    }
+// Get all equipment for filter
+$stmt = $conn->prepare("SELECT DISTINCT equipment_name FROM busker_equipment ORDER BY equipment_name");
+$stmt->execute();
+$equipment = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $buskers_query .= " GROUP BY b.busker_id ORDER BY b.band_name";
-
-    $stmt = $conn->prepare($buskers_query);
-    $stmt->execute($params);
-    $buskers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch(PDOException $e) {
-    error_log("Error fetching buskers: " . $e->getMessage());
-    $buskers = [];
-}
-
-// Fetch all genres for filter dropdown
-try {
-    $stmt = $conn->query("SELECT genre_id, name FROM genre ORDER BY name");
-    $all_genres = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch(PDOException $e) {
-    $all_genres = [];
-}
-
+// Get all active buskers with their equipment and genres
+$stmt = $conn->prepare("
+    SELECT 
+        b.*,
+        GROUP_CONCAT(DISTINCT g.name) as genres,
+        GROUP_CONCAT(DISTINCT be.equipment_name) as equipment
+    FROM busker b
+    LEFT JOIN busker_genre bg ON b.busker_id = bg.busker_id
+    LEFT JOIN genre g ON bg.genre_id = g.genre_id
+    LEFT JOIN busker_equipment be ON b.busker_id = be.busker_id
+    WHERE b.status = 'active'
+    GROUP BY b.busker_id
+");
+$stmt->execute();
+$buskers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -179,221 +98,193 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Select Busker - TBCPH</title>
-    <link rel="stylesheet" href="/tbcph/assets/css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        .container {
-            max-width: 1200px;
-            margin: 40px auto;
-            padding: 20px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-        }
-        .filter-section {
-            margin-bottom: 30px;
-            padding: 20px;
-            background: #f9f9f9;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        .filter-section label {
-            font-weight: bold;
-            color: #555;
-        }
-        .filter-section select {
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1em;
-            flex-grow: 1;
-            max-width: 300px;
-        }
-        .busker-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 25px;
-        }
         .busker-card {
-            background: #fbfbfb;
-            border: 1px solid #eee;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+            transition: all 0.3s ease;
+            cursor: pointer;
         }
-        .busker-card h3 {
-            color: #3498db;
-            margin-top: 0;
-            margin-bottom: 10px;
-            font-size: 1.4em;
+        .busker-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
-        .busker-card p {
+        .busker-card.selected {
+            border: 2px solid #0d6efd;
+            background-color: #f8f9fa;
+        }
+        .genre-badge {
+            margin-right: 5px;
             margin-bottom: 5px;
-            color: #666;
-        }
-        .busker-card strong {
-            color: #333;
-        }
-        .genre-tags {
-            margin-top: 10px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .genre-tag {
-            background: #e9e9e9;
-            padding: 5px 12px;
-            border-radius: 15px;
-            font-size: 0.85em;
-            color: #444;
         }
         .equipment-list {
-            margin-top: 10px;
             list-style: none;
-            padding: 0;
+            padding-left: 0;
         }
         .equipment-list li {
-            background: #f5f5f5;
-            padding: 5px 10px;
-            border-radius: 4px;
             margin-bottom: 5px;
-            font-size: 0.9em;
-            color: #555;
         }
-        .select-button-form {
-            margin-top: 20px;
-            text-align: right;
+        .busker-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 8px 8px 0 0;
         }
-        .btn-select {
-            background: #2ecc71;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            transition: background 0.3s;
-        }
-        .btn-select:hover {
-            background: #27ae60;
-        }
-        .no-buskers {
-            text-align: center;
-            padding: 50px;
-            color: #777;
-            font-size: 1.2em;
-        }
-        .alert {
-            padding: 15px;
+        .filter-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
             margin-bottom: 20px;
-            border-radius: 5px;
-            font-weight: bold;
         }
-        .alert-success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+        .filter-section h4 {
+            margin-bottom: 15px;
         }
-        .alert-danger {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+        .filter-checkbox {
+            margin-right: 10px;
+        }
+        .filter-label {
+            margin-right: 15px;
+            margin-bottom: 10px;
+            display: inline-block;
         }
     </style>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>
 
-    <main>
-        <div class="container">
-            <h1>Select a Busker for Your Inquiry</h1>
-
-            <?php /* Removed success/error alert boxes as requested */ ?>
-            <?php /*
-            if (isset($success)):
-            ?>
-                <div class="alert alert-success"><?php echo $success; ?></div>
-            <?php
-            endif;
-            ?>
-
-            <?php
-            if (isset($error)):
-            ?>
-                <div class="alert alert-danger"><?php echo $error; ?></div>
-            <?php
-            endif;
-            */ ?>
-
-            <div class="filter-section">
-                <label for="genreFilter">Filter by Genre:</label>
-                <select id="genreFilter" onchange="window.location.href='select_busker.php?genre_id=' + this.value">
-                    <option value="">All Genres</option>
-                    <?php foreach ($all_genres as $genre): ?>
-                        <option value="<?php echo htmlspecialchars($genre['genre_id']); ?>"
-                            <?php echo ($filter_genre_id == $genre['genre_id']) ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($genre['name']); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="busker-list">
-                <?php if (empty($buskers)): ?>
-                    <p class="no-buskers">No buskers found matching your criteria.</p>
-                <?php else: ?>
-                    <?php foreach ($buskers as $busker): ?>
-                        <div class="busker-card">
-                            <div>
-                                <h3><?php echo htmlspecialchars($busker['band_name'] ?: $busker['name']); ?></h3>
-                                <p><strong>Individual Name:</strong> <?php echo htmlspecialchars($busker['name']); ?></p>
-                                <p><strong>Genres:</strong></p>
-                                <div class="genre-tags">
-                                    <?php
-                                    $busker_genres = $busker['genres'] ? explode(',', $busker['genres']) : [];
-                                    foreach ($busker_genres as $g) {
-                                        echo "<span class=\"genre-tag\">" . htmlspecialchars(trim($g)) . "</span>";
-                                    }
-                                    if (empty($busker_genres)) {
-                                        echo "<span class=\"genre-tag\">No genres listed</span>";
-                                    }
-                                    ?>
-                                </div>
-                                <p><strong>Equipment:</strong></p>
-                                <ul class="equipment-list">
-                                    <?php
-                                    $busker_equipment = $busker['equipment'] ? explode(',', $busker['equipment']) : [];
-                                    foreach ($busker_equipment as $eq) {
-                                        echo "<li>" . htmlspecialchars(trim($eq)) . "</li>";
-                                    }
-                                    if (empty($busker_equipment)) {
-                                        echo "<li>No equipment listed</li>";
-                                    }
-                                    ?>
-                                </ul>
-                            </div>
-                            <div class="select-button-form">
-                                <form method="POST" action="select_busker.php">
-                                    <input type="hidden" name="busker_id" value="<?php echo htmlspecialchars($busker['busker_id']); ?>">
-                                    <button type="submit" name="select_busker" class="btn-select">Select Busker</button>
-                                </form>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+    <div class="container py-5">
+        <div class="row mb-4">
+            <div class="col">
+                <h2>Select a Busker for Your Event</h2>
+                <p class="text-muted">Event: <?php echo htmlspecialchars($inquiry['event_name']); ?></p>
+                <p class="text-muted">Date: <?php echo date('F j, Y', strtotime($inquiry['event_date'])); ?></p>
             </div>
         </div>
-    </main>
+
+        <?php if (isset($error)): ?>
+            <div class="alert alert-danger"><?php echo $error; ?></div>
+        <?php endif; ?>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <h4>Filter Buskers</h4>
+            <form id="filterForm" class="mb-3">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Genres</h5>
+                        <?php foreach ($genres as $genre): ?>
+                            <label class="filter-label">
+                                <input type="checkbox" class="filter-checkbox genre-filter" 
+                                       value="<?php echo htmlspecialchars($genre['name']); ?>">
+                                <?php echo htmlspecialchars($genre['name']); ?>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Equipment</h5>
+                        <?php foreach ($equipment as $eq): ?>
+                            <label class="filter-label">
+                                <input type="checkbox" class="filter-checkbox equipment-filter" 
+                                       value="<?php echo htmlspecialchars($eq['equipment_name']); ?>">
+                                <?php echo htmlspecialchars($eq['equipment_name']); ?>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <form method="POST" id="selectBuskerForm">
+            <div class="row">
+                <?php foreach ($buskers as $busker): ?>
+                    <div class="col-md-6 col-lg-4 mb-4 busker-item" 
+                         data-genres="<?php echo htmlspecialchars($busker['genres']); ?>"
+                         data-equipment="<?php echo htmlspecialchars($busker['equipment']); ?>">
+                        <div class="card busker-card h-100">
+                            <img src="../assets/images/placeholder.jpg" alt="<?php echo htmlspecialchars($busker['band_name'] ?: $busker['name']); ?>" class="busker-image">
+                            <div class="card-body">
+                                <h5 class="card-title"><?php echo htmlspecialchars($busker['band_name'] ?: $busker['name']); ?></h5>
+                                <p class="card-text">
+                                    <i class="fas fa-phone"></i> <?php echo htmlspecialchars($busker['contact_number']); ?><br>
+                                    <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($busker['email']); ?>
+                                </p>
+                                
+                                <?php if ($busker['genres']): ?>
+                                    <div class="mb-3">
+                                        <strong>Genres:</strong><br>
+                                        <?php foreach (explode(',', $busker['genres']) as $genre): ?>
+                                            <span class="badge bg-primary genre-badge"><?php echo htmlspecialchars($genre); ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if ($busker['equipment']): ?>
+                                    <div class="mb-3">
+                                        <strong>Equipment:</strong>
+                                        <ul class="equipment-list">
+                                            <?php foreach (explode(',', $busker['equipment']) as $equipment): ?>
+                                                <li><i class="fas fa-music"></i> <?php echo htmlspecialchars($equipment); ?></li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    </div>
+                                <?php endif; ?>
+
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="busker_id" 
+                                           value="<?php echo $busker['busker_id']; ?>">
+                                    <label class="form-check-label">Select this busker</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col">
+                    <button type="submit" class="btn btn-primary">Select Busker</button>
+                    <button type="submit" name="skip" value="1" class="btn btn-secondary">Skip for Now</button>
+                    <a href="/tbcph/client/dashboard.php" class="btn btn-outline-secondary">Back to Dashboard</a>
+                </div>
+            </div>
+        </form>
+    </div>
 
     <?php include '../includes/footer.php'; ?>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Add click handler for busker cards
+        document.querySelectorAll('.busker-card').forEach(card => {
+            card.addEventListener('click', function() {
+                // Remove selected class from all cards
+                document.querySelectorAll('.busker-card').forEach(c => c.classList.remove('selected'));
+                // Add selected class to clicked card
+                this.classList.add('selected');
+                // Check the radio button
+                this.querySelector('input[type="radio"]').checked = true;
+            });
+        });
+
+        // Filter functionality
+        document.querySelectorAll('.filter-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', filterBuskers);
+        });
+
+        function filterBuskers() {
+            const selectedGenres = Array.from(document.querySelectorAll('.genre-filter:checked')).map(cb => cb.value);
+            const selectedEquipment = Array.from(document.querySelectorAll('.equipment-filter:checked')).map(cb => cb.value);
+
+            document.querySelectorAll('.busker-item').forEach(item => {
+                const genres = item.dataset.genres.split(',');
+                const equipment = item.dataset.equipment.split(',');
+
+                const matchesGenres = selectedGenres.length === 0 || selectedGenres.some(genre => genres.includes(genre));
+                const matchesEquipment = selectedEquipment.length === 0 || selectedEquipment.some(eq => equipment.includes(eq));
+
+                item.style.display = matchesGenres && matchesEquipment ? '' : 'none';
+            });
+        }
+    </script>
 </body>
 </html> 

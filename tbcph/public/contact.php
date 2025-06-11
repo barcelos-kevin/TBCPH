@@ -9,7 +9,7 @@ $busker = null;
 // Fetch busker details if busker_id is provided
 if ($busker_id) {
     try {
-        $stmt = $conn->prepare("SELECT band_name FROM busker WHERE busker_id = ? AND status = 'Active'");
+        $stmt = $conn->prepare("SELECT * FROM busker WHERE busker_id = ? AND status = 'active'");
         $stmt->execute([$busker_id]);
         $busker = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch(PDOException $e) {
@@ -20,29 +20,61 @@ if ($busker_id) {
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'client') {
+    if (!isset($_SESSION['client_id'])) {
         $error = 'Please log in as a client to submit an inquiry.';
     } else {
         try {
-            // Collect all form data into an array
-            $_SESSION['temp_inquiry_data'] = [
-                'event_name' => $_POST['event_name'],
-                'event_type' => $_POST['event_type'],
-                'event_date' => $_POST['event_date'],
-                'time_slot_id' => $_POST['time_slot'],
-                'location_type' => $_POST['location_type'],
-                'location_id' => ($_POST['location_type'] === 'existing') ? $_POST['location'] : null,
-                'custom_address' => ($_POST['location_type'] === 'custom') ? $_POST['custom_address'] : null,
-                'custom_city' => ($_POST['location_type'] === 'custom') ? $_POST['custom_city'] : null,
-                'custom_region' => ($_POST['location_type'] === 'custom') ? $_POST['custom_region'] : null,
-                'venue_equipment' => $_POST['venue_equipment'],
-                'description' => $_POST['description'],
-                'budget' => $_POST['budget'],
-                'genres' => isset($_POST['genres']) ? $_POST['genres'] : [],
-                'files' => [], // Placeholder for uploaded file paths
-            ];
+            $conn->beginTransaction();
 
-            // Handle file uploads separately and store paths in session
+            // 1. Handle Location (insert custom or use existing)
+            $location_id = null;
+            if ($_POST['location_type'] === 'custom') {
+                $stmt = $conn->prepare("
+                    INSERT INTO location (address, city, region)
+                    VALUES (?, ?, ?)
+                ");
+                $stmt->execute([
+                    $_POST['custom_address'],
+                    $_POST['custom_city'],
+                    $_POST['custom_region']
+                ]);
+                $location_id = $conn->lastInsertId();
+            } else {
+                $location_id = (int)$_POST['location'];
+            }
+
+            // 2. Insert Event Details
+            $stmt = $conn->prepare("
+                INSERT INTO event_table (
+                    event_name, event_type, event_date, time_slot_id, 
+                    location_id, venue_equipment, description
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $_POST['event_name'],
+                $_POST['event_type'],
+                $_POST['event_date'],
+                $_POST['time_slot'],
+                $location_id,
+                $_POST['venue_equipment'],
+                $_POST['description']
+            ]);
+            $event_id = $conn->lastInsertId();
+
+            // 3. Insert Inquiry
+            $stmt = $conn->prepare("
+                INSERT INTO inquiry (
+                    client_id, event_id, budget, inquiry_status
+                ) VALUES (?, ?, ?, 'pending')
+            ");
+            $stmt->execute([
+                $_SESSION['client_id'],
+                $event_id,
+                $_POST['budget']
+            ]);
+            $inquiry_id = $conn->lastInsertId();
+
+            // 4. Handle Supporting Documents
             if (!empty($_FILES['supporting_docs']['name'][0])) {
                 $upload_dir = __DIR__ . '/../uploads/';
                 if (!file_exists($upload_dir)) {
@@ -55,21 +87,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $file_path = $upload_dir . $file_name;
                         
                         if (move_uploaded_file($tmp_name, $file_path)) {
-                            $_SESSION['temp_inquiry_data']['files'][] = 'uploads/' . $file_name; // Store relative path
-                        } else {
-                            throw new Exception("Failed to move uploaded file: " . $_FILES['supporting_docs']['name'][$key]);
+                            $stmt = $conn->prepare("INSERT INTO supporting_document (doc_link) VALUES (?)");
+                            $stmt->execute(['uploads/' . $file_name]);
+                            $doc_id = $conn->lastInsertId();
+
+                            $stmt = $conn->prepare("INSERT INTO inquiry_document (inquiry_id, docs_id) VALUES (?, ?)");
+                            $stmt->execute([$inquiry_id, $doc_id]);
                         }
                     }
                 }
             }
-            
-            // Redirect to busker selection page
-            header('Location: select_busker.php');
-            exit();
+
+            // 5. Insert Genres
+            if (!empty($_POST['genres'])) {
+                $stmt = $conn->prepare("
+                    INSERT INTO inquiry_genre (inquiry_id, genre_id)
+                    VALUES (?, ?)
+                ");
+                foreach ($_POST['genres'] as $genre_id) {
+                    $stmt->execute([$inquiry_id, $genre_id]);
+                }
+            }
+
+            $conn->commit();
+
+            // If a busker was pre-selected, create the hire record
+            if ($busker_id) {
+                $stmt = $conn->prepare("INSERT INTO hire (inquiry_id, busker_id, payment_status) VALUES (?, ?, 'pending')");
+                $stmt->execute([$inquiry_id, $busker_id]);
+                
+                // Update inquiry status
+                $stmt = $conn->prepare("UPDATE inquiry SET inquiry_status = 'busker selected' WHERE inquiry_id = ?");
+                $stmt->execute([$inquiry_id]);
+                
+                redirectWithMessage('/client/dashboard.php', 'Inquiry submitted successfully with busker selected!', 'success');
+            } else {
+                // Redirect to busker selection page
+                redirect('/public/select_busker.php?inquiry_id=' . $inquiry_id);
+            }
 
         } catch(Exception $e) {
-            error_log("Error collecting inquiry data: " . $e->getMessage());
-            $error = 'An error occurred while preparing your inquiry. Please try again. Error: ' . $e->getMessage();
+            $conn->rollBack();
+            error_log("Error submitting inquiry: " . $e->getMessage());
+            $error = 'An error occurred while submitting your inquiry. Please try again.';
         }
     }
 }
@@ -483,7 +543,7 @@ try {
                                     <option value="XII">Region XII - SOCCSKSARGEN</option>
                                     <option value="XIII">Region XIII - Caraga</option>
                                     <option value="BARMM">BARMM</option>
-                        </select>
+                                </select>
                             </div>
                         </div>
                     </div>

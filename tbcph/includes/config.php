@@ -91,3 +91,64 @@ function sanitizeInput($data) {
     $data = htmlspecialchars($data);
     return $data;
 }  
+
+// Additional helper functions
+function formatDate($date, $format = 'F j, Y') {
+    return date($format, strtotime($date));
+}
+
+function formatCurrency($amount) {
+    return '₱' . number_format($amount, 2);
+}
+
+function getUserFullName($userId, $userType) {
+    global $conn;
+    try {
+        $table = $userType . 's'; // clients, buskers, admins
+        $stmt = $conn->prepare("SELECT name FROM $table WHERE {$userType}_id = ?");
+        $stmt->execute([$userId]);
+        return $stmt->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("Error getting user name: " . $e->getMessage());
+        return null;
+    }
+}
+
+function containsAny($string, $words) {
+    foreach ($words as $word) {
+        if (stripos($string, $word) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function getFileExtension($filename) {
+    return strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+}
+
+function isImage($filename) {
+    $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+    return in_array(getFileExtension($filename), $allowed);
+}
+
+function generateRandomString($length = 10) {
+    return bin2hex(random_bytes($length));
+}
+
+function redirectWithMessage($url, $message, $type = 'success') {
+    $_SESSION['message'] = $message;
+    $_SESSION['message_type'] = $type;
+    header('Location: ' . $url);
+    exit();
+}
+
+function displayMessage() {
+    if (isset($_SESSION['message'])) {
+        $type = $_SESSION['message_type'] ?? 'success';
+        $message = $_SESSION['message'];
+        unset($_SESSION['message'], $_SESSION['message_type']);
+        return "<div class='alert alert-$type'>$message</div>";
+    }
+    return null;
+}  
