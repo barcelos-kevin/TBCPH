@@ -71,27 +71,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 40px 20px;
+            padding: 20px;
         }
 
         .login-container {
             background: white;
-            padding: 40px;
+            padding: 30px;
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
             width: 100%;
             max-width: 400px;
+            margin: 20px 0;
         }
 
         .login-header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         .login-header h1 {
             color: #333;
             font-size: 24px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .login-header p {
@@ -100,19 +101,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             color: #333;
             font-weight: 500;
         }
 
         .form-group input {
             width: 100%;
-            padding: 12px;
+            padding: 10px;
             border: 1px solid #ddd;
             border-radius: 5px;
             font-size: 14px;
@@ -127,13 +128,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .error-message {
             color: #dc3545;
             font-size: 14px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             text-align: center;
         }
 
         .btn-login {
             width: 100%;
-            padding: 12px;
+            padding: 10px;
             background: #007bff;
             color: white;
             border: none;
@@ -150,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .register-link {
             text-align: center;
-            margin-top: 20px;
+            margin-top: 15px;
             font-size: 14px;
             color: #666;
         }
@@ -167,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .back-to-home {
             text-align: center;
-            margin-top: 20px;
+            margin-top: 15px;
         }
 
         .back-to-home a {
@@ -219,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="back-to-home">
-                <a href="../index.php">
+                <a href="../public/index.php">
                     <i class="fas fa-arrow-left"></i> Back to Home
                 </a>
             </div>
