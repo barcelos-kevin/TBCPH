@@ -734,6 +734,43 @@ if (isset($_SESSION['error'])) {
             border-radius: 4px;
             margin-top: 5px;
         }
+
+        .dashboard-header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 5px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.3s;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            color: white;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
@@ -755,7 +792,7 @@ if (isset($_SESSION['error'])) {
                     <?php elseif($_SESSION['user_type'] == 'client'): ?>
                         <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
                     <?php endif; ?>
-                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
+                    <li><a href="../includes/logout.php">Logout</a></li>
                 <?php else: ?>
                     <li><a href="/tbcph/client/index.php">Client Login</a></li>
                     <li><a href="/tbcph/busker/index.php">Busker Login</a></li>
@@ -766,7 +803,16 @@ if (isset($_SESSION['error'])) {
 
     <main>
         <div class="dashboard-container">
-            <h1>Welcome, <?php echo htmlspecialchars($_SESSION['client_name']); ?>!</h1>
+            <div class="dashboard-header">
+                <div class="header-content">
+                    <h1>Welcome, <?php echo htmlspecialchars($_SESSION['client_name']); ?>!</h1>
+                    <div class="header-actions">
+                        <a href="../includes/logout.php" class="btn btn-danger">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
             
             <?php if (isset($success)): ?>
                 <div class="success-message"><?php echo $success; ?></div>
@@ -775,7 +821,7 @@ if (isset($_SESSION['error'])) {
             <?php if (isset($error)): ?>
                 <div class="error-message"><?php echo $error; ?></div>
             <?php endif; ?>
-
+            
             <div class="dashboard-actions">
                 <a href="/tbcph/public/contact.php" class="btn primary">Book a Busker</a>
                 <a href="profile.php" class="btn secondary">View Profile</a>

@@ -11,32 +11,33 @@ $error = '';
 $email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = filter_var($_POST['email'], FILTER_VALIDATE_EMAIL);
-    $password = $_POST['password'];
+    $email = $_POST['email'] ?? '';
+    $password = $_POST['password'] ?? '';
 
-    if (!$email) {
-        $error = 'Please enter a valid email address';
+    if (empty($email) || empty($password)) {
+        $error = "Please fill in all fields";
     } else {
         try {
-            // Get client from database
-            $stmt = $conn->prepare("SELECT client_id, name, email, password FROM client WHERE email = ?");
+            $stmt = $conn->prepare("SELECT * FROM client WHERE email = ?");
             $stmt->execute([$email]);
-            $client = $stmt->fetch(PDO::FETCH_ASSOC);
+            $client = $stmt->fetch();
 
             if ($client && password_verify($password, $client['password'])) {
                 // Set session variables
                 $_SESSION['client_id'] = $client['client_id'];
                 $_SESSION['client_name'] = $client['name'];
                 $_SESSION['client_email'] = $client['email'];
-
+                $_SESSION['client_phone'] = $client['phone'];
+                $_SESSION['user_type'] = 'client';
+                
                 // Redirect to dashboard
-                header('Location: dashboard.php');
+                header("Location: dashboard.php");
                 exit();
             } else {
-                $error = 'Invalid email or password';
+                $error = "Invalid email or password";
             }
         } catch (PDOException $e) {
-            $error = 'An error occurred. Please try again later.';
+            $error = "An error occurred. Please try again.";
             error_log("Login error: " . $e->getMessage());
         }
     }
@@ -49,257 +50,182 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Client Login - TBCPH</title>
-    <link rel="stylesheet" href="/tbcph/assets/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        .auth-container {
-            min-height: calc(100vh - 200px);
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        main {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 40px 20px;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
         }
 
-        .auth-box {
+        .login-container {
             background: white;
             padding: 40px;
             border-radius: 10px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
             width: 100%;
             max-width: 400px;
         }
 
-        .auth-box h1 {
+        .login-header {
             text-align: center;
-            color: #2c3e50;
             margin-bottom: 30px;
-            font-size: 2em;
         }
 
-        .auth-form {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+        .login-header h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .login-header p {
+            color: #666;
+            font-size: 14px;
         }
 
         .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
+            margin-bottom: 20px;
         }
 
         .form-group label {
-            color: #2c3e50;
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
             font-weight: 500;
-            font-size: 0.9em;
         }
 
         .form-group input {
+            width: 100%;
             padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 6px;
-            font-size: 1em;
-            transition: border-color 0.3s ease;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
         }
 
         .form-group input:focus {
-            border-color: #3498db;
+            border-color: #007bff;
             outline: none;
         }
 
         .error-message {
-            background: #fee2e2;
-            color: #dc2626;
-            padding: 12px;
-            border-radius: 6px;
+            color: #dc3545;
+            font-size: 14px;
             margin-bottom: 20px;
-            font-size: 0.9em;
             text-align: center;
         }
 
-        .btn.primary {
-            background: #2c3e50;
-            color: white;
+        .btn-login {
+            width: 100%;
             padding: 12px;
+            background: #007bff;
+            color: white;
             border: none;
-            border-radius: 6px;
-            font-size: 1em;
-            font-weight: 600;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: background-color 0.3s;
         }
 
-        .btn.primary:hover {
-            background: #1a252f;
-            transform: translateY(-2px);
+        .btn-login:hover {
+            background: #0056b3;
         }
 
-        .auth-links {
-            margin-top: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+        .register-link {
             text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #666;
         }
 
-        .auth-links a {
-            color: #3498db;
+        .register-link a {
+            color: #007bff;
             text-decoration: none;
-            font-size: 0.9em;
-            transition: color 0.3s ease;
+            font-weight: 500;
         }
 
-        .auth-links a:hover {
-            color: #2980b9;
+        .register-link a:hover {
+            text-decoration: underline;
         }
 
-        @media (max-width: 480px) {
-            .auth-box {
-                padding: 30px 20px;
-            }
+        .back-to-home {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .back-to-home a {
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .back-to-home a:hover {
+            color: #333;
         }
     </style>
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="logo">
-                <a href="/tbcph/public/index.php">TBCPH</a>
-            </div>
-            <ul class="nav-links">
-                <li><a href="/tbcph/public/index.php">Home</a></li>
-                <li><a href="/tbcph/public/about.php">About</a></li>
-                <li><a href="/tbcph/public/buskers.php">Buskers</a></li>
-                <li><a href="/tbcph/public/contact.php">Contact</a></li>
-                <?php if(isset($_SESSION['client_id'])): ?>
-                    <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
-                    <li><a href="/tbcph/client/profile.php">My Profile</a></li>
-                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
-                <?php elseif(isset($_SESSION['busker_id'])): ?>
-                    <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
-                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
-                <?php elseif(isset($_SESSION['admin_email'])): ?>
-                    <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
-                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
-                <?php else: ?>
-                    <li><a href="/tbcph/client/register.php">Register</a></li>
-                    <li><a href="/tbcph/client/index.php">Login</a></li>
-                <?php endif; ?>
-            </ul>
-        </nav>
-    </header>
+    <?php include '../includes/header.php'; ?>
 
     <main>
-        <div class="auth-container">
-            <div class="auth-box">
+        <div class="login-container">
+            <div class="login-header">
                 <h1>Client Login</h1>
-                
-                <?php if ($error): ?>
-                    <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
-                <?php endif; ?>
+                <p>Welcome back! Please login to your account.</p>
+            </div>
 
-                <form method="POST" class="auth-form" novalidate>
-                    <div class="form-group">
-                        <label for="email">Email Address</label>
-                        <input 
-                            type="email" 
-                            id="email" 
-                            name="email" 
-                            value="<?php echo htmlspecialchars($email); ?>"
-                            required 
-                            autocomplete="email"
-                            placeholder="Enter your email"
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label for="password">Password</label>
-                        <input 
-                            type="password" 
-                            id="password" 
-                            name="password" 
-                            required 
-                            autocomplete="current-password"
-                            placeholder="Enter your password"
-                            minlength="8"
-                        >
-                    </div>
-
-                    <button type="submit" class="btn primary">Sign In</button>
-                </form>
-
-                <div class="auth-links">
-                    <a href="register.php">Don't have an account? Register here</a>
-                    <a href="/tbcph/public/index.php">Back to Home</a>
+            <?php if ($error): ?>
+                <div class="error-message">
+                    <?php echo htmlspecialchars($error); ?>
                 </div>
+            <?php endif; ?>
+
+            <form method="POST" action="">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+
+                <button type="submit" class="btn-login">Login</button>
+            </form>
+
+            <div class="register-link">
+                Don't have an account? <a href="register.php">Register here</a>
+            </div>
+
+            <div class="back-to-home">
+                <a href="../index.php">
+                    <i class="fas fa-arrow-left"></i> Back to Home
+                </a>
             </div>
         </div>
     </main>
 
-    <footer>
-        <div class="footer-content">
-            <div class="footer-section">
-                <h3>Contact Us</h3>
-                <p>Email: info@tbcph.com</p>
-                <p>Phone: (123) 456-7890</p>
-            </div>
-            <div class="footer-section">
-                <h3>Quick Links</h3>
-                <ul>
-                    <li><a href="/tbcph/public/about.php">About Us</a></li>
-                    <li><a href="/tbcph/public/buskers.php">Our Buskers</a></li>
-                    <li><a href="/tbcph/public/contact.php">Contact</a></li>
-                </ul>
-            </div>
-            <div class="footer-section">
-                <h3>Follow Us</h3>
-                <div class="social-links">
-                    <a href="#">Facebook</a>
-                    <a href="#">Instagram</a>
-                    <a href="#">Twitter</a>
-                </div>
-            </div>
-        </div>
-        <div class="footer-bottom">
-            <p>&copy; <?php echo date('Y'); ?> The Busking Community PH. All rights reserved.</p>
-        </div>
-    </footer>
-
-    <script>
-        // Form validation
-        document.querySelector('.auth-form').addEventListener('submit', function(e) {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            let isValid = true;
-            let errorMessage = '';
-
-            if (!email) {
-                errorMessage = 'Please enter your email address';
-                isValid = false;
-            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                errorMessage = 'Please enter a valid email address';
-                isValid = false;
-            }
-
-            if (!password) {
-                errorMessage = 'Please enter your password';
-                isValid = false;
-            } else if (password.length < 8) {
-                errorMessage = 'Password must be at least 8 characters long';
-                isValid = false;
-            }
-
-            if (!isValid) {
-                e.preventDefault();
-                const errorDiv = document.querySelector('.error-message') || document.createElement('div');
-                errorDiv.className = 'error-message';
-                errorDiv.textContent = errorMessage;
-                
-                if (!document.querySelector('.error-message')) {
-                    document.querySelector('.auth-box').insertBefore(errorDiv, document.querySelector('.auth-form'));
-                }
-            }
-        });
-    </script>
+    <?php include '../includes/footer.php'; ?>
 </body>
 </html>  

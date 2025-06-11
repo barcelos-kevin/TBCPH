@@ -44,21 +44,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Passwords do not match';
     } else {
         try {
-            // Check if email already exists
-            $stmt = $conn->prepare("SELECT COUNT(*) FROM busker WHERE email = ?");
+        // Check if email already exists
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM busker WHERE email = ?");
             $stmt->execute([$formData['email']]);
-            if ($stmt->fetchColumn() > 0) {
+        if ($stmt->fetchColumn() > 0) {
                 $error = 'Email already registered';
             } else {
                 // Insert new busker
-                $stmt = $conn->prepare("
+        $stmt = $conn->prepare("
                     INSERT INTO busker (name, email, contact_number, address, birthday, has_equipment, status, password, band_name)
                     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)
-                ");
+        ");
                 
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                
-                $stmt->execute([
+        
+        $stmt->execute([
                     $formData['name'],
                     $formData['email'],
                     $formData['phone'],
@@ -67,8 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $formData['has_equipment'],
                     $hashed_password,
                     $formData['band_name']
-                ]);
-
+        ]);
+        
                 $success = 'Registration successful! Please wait for admin approval.';
                 $formData = [
                     'name' => '',
@@ -79,12 +79,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'has_equipment' => false,
                     'band_name' => ''
                 ];
-            }
+                }
         } catch (PDOException $e) {
             $error = 'An error occurred. Please try again later.';
             error_log("Registration error: " . $e->getMessage());
-        }
     }
+}
 }
 ?>
 
@@ -258,10 +258,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <li><a href="/tbcph/public/contact.php">Contact</a></li>
                 <?php if(isset($_SESSION['busker_id'])): ?>
                     <li><a href="/tbcph/busker/dashboard.php">My Dashboard</a></li>
-                    <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
+                        <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
                     <li><a href="/tbcph/includes/logout.php?type=busker">Logout</a></li>
                 <?php elseif(isset($_SESSION['client_id'])): ?>
-                    <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
+                        <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
                     <li><a href="/tbcph/client/profile.php">My Profile</a></li>
                     <li><a href="/tbcph/includes/logout.php?type=client">Logout</a></li>
                 <?php elseif(isset($_SESSION['admin_email'])): ?>
@@ -279,71 +279,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="auth-container">
             <div class="auth-box">
                 <h1>Busker Registration</h1>
-                
-                <?php if ($error): ?>
+            
+            <?php if ($error): ?>
                     <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
-                <?php endif; ?>
-
-                <?php if ($success): ?>
+            <?php endif; ?>
+            
+            <?php if ($success): ?>
                     <div class="success-message"><?php echo htmlspecialchars($success); ?></div>
-                <?php endif; ?>
+            <?php endif; ?>
 
                 <form method="POST" class="auth-form">
                     <div class="form-row">
-                        <div class="form-group">
+                <div class="form-group">
                             <label for="name">Full Name *</label>
                             <input type="text" id="name" name="name" value="<?php echo htmlspecialchars($formData['name']); ?>" required>
-                        </div>
+                </div>
 
-                        <div class="form-group">
+                <div class="form-group">
                             <label for="email">Email Address *</label>
                             <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($formData['email']); ?>" required>
                         </div>
-                    </div>
+                </div>
 
                     <div class="form-row">
-                        <div class="form-group">
+                <div class="form-group">
                             <label for="phone">Contact Number</label>
                             <input type="tel" id="phone" name="phone" value="<?php echo htmlspecialchars($formData['phone']); ?>">
-                        </div>
+                </div>
 
-                        <div class="form-group">
+                <div class="form-group">
                             <label for="birthday">Birthday</label>
                             <input type="date" id="birthday" name="birthday" value="<?php echo htmlspecialchars($formData['birthday']); ?>">
                         </div>
-                    </div>
+                </div>
 
-                    <div class="form-group">
+                <div class="form-group">
                         <label for="band_name">Band Name (if applicable)</label>
                         <input type="text" id="band_name" name="band_name" value="<?php echo htmlspecialchars($formData['band_name']); ?>">
-                    </div>
+                </div>
 
-                    <div class="form-group">
-                        <label for="address">Address</label>
+                <div class="form-group">
+                    <label for="address">Address</label>
                         <textarea id="address" name="address"><?php echo htmlspecialchars($formData['address']); ?></textarea>
-                    </div>
+                </div>
 
-                    <div class="form-group">
+                <div class="form-group">
                         <div class="checkbox-group">
                             <input type="checkbox" id="has_equipment" name="has_equipment" <?php echo $formData['has_equipment'] ? 'checked' : ''; ?>>
                             <label for="has_equipment">I have my own equipment</label>
-                        </div>
+                </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="password">Password *</label>
                             <input type="password" id="password" name="password" required>
-                        </div>
+                </div>
 
-                        <div class="form-group">
+                <div class="form-group">
                             <label for="confirm_password">Confirm Password *</label>
                             <input type="password" id="confirm_password" name="confirm_password" required>
                         </div>
-                    </div>
+                </div>
 
-                    <button type="submit" class="btn primary">Register</button>
-                </form>
+                <button type="submit" class="btn primary">Register</button>
+            </form>
 
                 <div class="auth-links">
                     <a href="index.php">Already have an account? Login here</a>

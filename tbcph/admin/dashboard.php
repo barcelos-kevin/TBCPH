@@ -7,7 +7,6 @@ if (!isset($_SESSION['admin_email'])) {
     exit();
 }
 
-// Get statistics
 try {
     // Total buskers
     $stmt = $conn->query("SELECT COUNT(*) FROM busker");
@@ -24,6 +23,10 @@ try {
     // Total inquiries
     $stmt = $conn->query("SELECT COUNT(*) FROM inquiry");
     $total_inquiries = $stmt->fetchColumn();
+
+    // Pending inquiries
+    $stmt = $conn->query("SELECT COUNT(*) FROM inquiry WHERE inquiry_status = 'pending'");
+    $pending_inquiries = $stmt->fetchColumn();
 
     // Recent inquiries
     $stmt = $conn->query("
@@ -71,10 +74,6 @@ try {
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
-            padding: 20px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .dashboard-title {
@@ -103,8 +102,19 @@ try {
             border: 2px solid #2c3e50;
         }
 
-        .header-actions .btn i {
+        .header-actions .btn-primary {
+            background: #007bff;
+            border-color: #007bff;
             font-size: 1.2em;
+            padding: 14px 28px;
+            box-shadow: 0 4px 6px rgba(0, 123, 255, 0.2);
+        }
+
+        .header-actions .btn-primary:hover {
+            background: #0056b3;
+            border-color: #0056b3;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 123, 255, 0.3);
         }
 
         .header-actions .btn:hover {
@@ -114,9 +124,14 @@ try {
             border-color: #34495e;
         }
 
-        .header-actions .btn:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        .badge {
+            background: #dc3545;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 8px;
         }
 
         .stats-grid {
@@ -226,16 +241,6 @@ try {
             margin-right: 8px;
         }
 
-        .approve-btn {
-            background: #28a745;
-            color: white;
-        }
-
-        .reject-btn {
-            background: #dc3545;
-            color: white;
-        }
-
         .view-btn {
             background: #17a2b8;
             color: white;
@@ -252,61 +257,49 @@ try {
                 text-align: center;
             }
 
+            .header-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .header-actions .btn {
+                width: 100%;
+                justify-content: center;
+                margin-bottom: 10px;
+            }
+
             table {
                 display: block;
                 overflow-x: auto;
             }
         }
 
-        .table-container {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            overflow-x: auto;
-            margin-top: 20px;
+        .stat-card.highlight {
+            background: #fff3cd;
+            border: 2px solid #ffeeba;
+            position: relative;
         }
 
-        .dashboard-table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 600px;
+        .stat-card.highlight h3 {
+            color: #856404;
         }
 
-        .dashboard-table th,
-        .dashboard-table td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid #e9ecef;
+        .stat-card.highlight .number {
+            color: #856404;
+            font-size: 2.2em;
         }
 
-        .dashboard-table th {
-            background: #f8f9fa;
-            font-weight: 600;
-            color: #2c3e50;
-        }
-
-        .dashboard-table tr:hover {
-            background: #f8f9fa;
-        }
-
-        .text-center {
-            text-align: center;
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .section-header h2 {
-            margin: 0;
-        }
-
-        .section-header .btn {
-            padding: 8px 16px;
+        .view-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: #856404;
+            text-decoration: none;
+            font-weight: 500;
             font-size: 0.9em;
+        }
+
+        .view-link:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -323,6 +316,7 @@ try {
                 <li><a href="/tbcph/public/contact.php">Contact</a></li>
                 <?php if(isset($_SESSION['admin_email'])): ?>
                     <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
+                    <li><a href="/tbcph/admin/profile.php">My Profile</a></li>
                     <li><a href="/tbcph/includes/logout.php?type=admin">Logout</a></li>
                 <?php endif; ?>
             </ul>
@@ -334,75 +328,83 @@ try {
             <div class="dashboard-header">
                 <h1 class="dashboard-title">Admin Dashboard</h1>
                 <div class="header-actions">
-                    <a href="pending_buskers.php" class="btn btn-primary">
-                        <i class="fas fa-user-clock"></i> Pending Buskers
+                    <a href="manage_inquiries.php" class="btn btn-primary">
+                        <i class="fas fa-tasks"></i>
+                        Manage Inquiries
+                        <?php if ($pending_inquiries > 0): ?>
+                            <span class="badge"><?php echo $pending_inquiries; ?></span>
+                        <?php endif; ?>
                     </a>
-                    <a href="profile.php" class="btn btn-secondary">
-                        <i class="fas fa-user"></i> My Profile
-                    </a>
+                    <a href="pending_buskers.php" class="btn">Pending Buskers</a>
+                    <a href="profile.php" class="btn">My Profile</a>
                 </div>
             </div>
 
             <div class="stats-grid">
                 <div class="stat-card">
                     <h3>Total Buskers</h3>
-                    <p><?php echo $total_buskers; ?></p>
+                    <div class="number"><?php echo $total_buskers; ?></div>
                 </div>
                 <div class="stat-card">
                     <h3>Active Buskers</h3>
-                    <p><?php echo $active_buskers; ?></p>
+                    <div class="number"><?php echo $active_buskers; ?></div>
                 </div>
                 <div class="stat-card">
                     <h3>Total Clients</h3>
-                    <p><?php echo $total_clients; ?></p>
+                    <div class="number"><?php echo $total_clients; ?></div>
                 </div>
                 <div class="stat-card">
                     <h3>Total Inquiries</h3>
-                    <p><?php echo $total_inquiries; ?></p>
+                    <div class="number"><?php echo $total_inquiries; ?></div>
                 </div>
-            </div>
-
-            <div class="section">
-                <div class="section-header">
-                    <h2>Pending Busker Registrations</h2>
-                    <a href="pending_buskers.php" class="btn btn-primary">View All</a>
-                </div>
-                <div class="table-container">
-                    <table class="dashboard-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Contact</th>
-                                <th>Band Name</th>
-                                <th>Registration Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($pending_buskers)): ?>
-                                <tr>
-                                    <td colspan="5" class="text-center">No pending registrations</td>
-                                </tr>
-                            <?php else: ?>
-                                <?php foreach ($pending_buskers as $busker): ?>
-                                    <tr>
-                                        <td><?php echo htmlspecialchars($busker['name']); ?></td>
-                                        <td><?php echo htmlspecialchars($busker['email']); ?></td>
-                                        <td><?php echo htmlspecialchars($busker['contact_number']); ?></td>
-                                        <td><?php echo htmlspecialchars($busker['band_name'] ?? 'N/A'); ?></td>
-                                        <td><?php echo $busker['formatted_date'] ?? 'N/A'; ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                <div class="stat-card highlight">
+                    <h3>Pending Inquiries</h3>
+                    <div class="number"><?php echo $pending_inquiries; ?></div>
+                    <?php if ($pending_inquiries > 0): ?>
+                        <a href="manage_inquiries.php?status=pending" class="view-link">View Pending</a>
+                    <?php endif; ?>
                 </div>
             </div>
 
             <div class="dashboard-section">
                 <div class="section-header">
+                    <h2 class="section-title">Pending Busker Registrations</h2>
+                    <a href="pending_buskers.php" class="view-all">View All</a>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Contact</th>
+                            <th>Band Name</th>
+                            <th>Registration Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($pending_buskers)): ?>
+                            <tr>
+                                <td colspan="5" class="text-center">No pending registrations</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($pending_buskers as $busker): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($busker['name']); ?></td>
+                                    <td><?php echo htmlspecialchars($busker['email']); ?></td>
+                                    <td><?php echo htmlspecialchars($busker['contact_number']); ?></td>
+                                    <td><?php echo htmlspecialchars($busker['band_name'] ?? 'N/A'); ?></td>
+                                    <td><?php echo $busker['formatted_date']; ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="dashboard-section">
+                <div class="section-header">
                     <h2 class="section-title">Recent Inquiries</h2>
-                    <a href="manage_inquiries.php" class="view-all">View All</a>
+                    <a href="manage_inquiries.php" class="view-all">Manage Inquiries</a>
                 </div>
                 <table>
                     <thead>
@@ -417,20 +419,20 @@ try {
                     </thead>
                     <tbody>
                         <?php foreach ($recent_inquiries as $inquiry): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($inquiry['client_name']); ?></td>
-                            <td><?php echo htmlspecialchars($inquiry['event_name']); ?></td>
-                            <td><?php echo htmlspecialchars($inquiry['event_date']); ?></td>
-                            <td>₱<?php echo number_format($inquiry['budget'], 2); ?></td>
-                            <td>
-                                <span class="status-badge status-<?php echo strtolower($inquiry['inquiry_status']); ?>">
-                                    <?php echo htmlspecialchars($inquiry['inquiry_status']); ?>
-                                </span>
-                            </td>
-                            <td>
-                                <a href="view_inquiry.php?id=<?php echo $inquiry['inquiry_id']; ?>" class="action-btn view-btn">View</a>
-                            </td>
-                        </tr>
+                            <tr>
+                                <td><?php echo htmlspecialchars($inquiry['client_name']); ?></td>
+                                <td><?php echo htmlspecialchars($inquiry['event_name']); ?></td>
+                                <td><?php echo htmlspecialchars($inquiry['event_date']); ?></td>
+                                <td>₱<?php echo number_format($inquiry['budget'], 2); ?></td>
+                                <td>
+                                    <span class="status-badge status-<?php echo strtolower($inquiry['inquiry_status']); ?>">
+                                        <?php echo htmlspecialchars($inquiry['inquiry_status']); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="manage_inquiries.php?id=<?php echo $inquiry['inquiry_id']; ?>" class="action-btn view-btn">View</a>
+                                </td>
+                            </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
