@@ -24,61 +24,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please log in as a client to submit an inquiry.';
     } else {
         try {
-            $conn->beginTransaction();
+            // Collect all form data into an array
+            $_SESSION['temp_inquiry_data'] = [
+                'event_name' => $_POST['event_name'],
+                'event_type' => $_POST['event_type'],
+                'event_date' => $_POST['event_date'],
+                'time_slot_id' => $_POST['time_slot'],
+                'location_type' => $_POST['location_type'],
+                'location_id' => ($_POST['location_type'] === 'existing') ? $_POST['location'] : null,
+                'custom_address' => ($_POST['location_type'] === 'custom') ? $_POST['custom_address'] : null,
+                'custom_city' => ($_POST['location_type'] === 'custom') ? $_POST['custom_city'] : null,
+                'custom_region' => ($_POST['location_type'] === 'custom') ? $_POST['custom_region'] : null,
+                'venue_equipment' => $_POST['venue_equipment'],
+                'description' => $_POST['description'],
+                'budget' => $_POST['budget'],
+                'genres' => isset($_POST['genres']) ? $_POST['genres'] : [],
+                'files' => [], // Placeholder for uploaded file paths
+            ];
 
-            // Handle custom location
-            $location_id = null;
-            if ($_POST['location_type'] === 'custom') {
-                // Insert custom location
-                $stmt = $conn->prepare("
-                    INSERT INTO location (address, city, is_custom)
-                    VALUES (?, ?, 1)
-                ");
-                $stmt->execute([
-                    $_POST['custom_address'],
-                    $_POST['custom_city']
-                ]);
-                $location_id = $conn->lastInsertId();
-            } else {
-                $location_id = $_POST['location'];
-            }
-
-            // Insert event details
-            $stmt = $conn->prepare("
-                INSERT INTO event_table (
-                    event_name, event_type, event_date, time_slot_id, 
-                    location_id, venue_equipment, description
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ");
-            
-            $stmt->execute([
-                $_POST['event_name'],
-                $_POST['event_type'],
-                $_POST['event_date'],
-                $_POST['time_slot'],
-                $_POST['location_type'] === 'existing' ? $_POST['location'] : $location_id,
-                $_POST['venue_equipment'],
-                $_POST['description']
-            ]);
-            
-            $eventId = $conn->lastInsertId();
-
-            // Insert inquiry
-            $stmt = $conn->prepare("
-                INSERT INTO inquiry (
-                    client_id, event_id, budget, inquiry_status
-                ) VALUES (?, ?, ?, 'pending')
-            ");
-            
-            $stmt->execute([
-                $_SESSION['user_id'],
-                $eventId,
-                $_POST['budget']
-            ]);
-            
-            $inquiryId = $conn->lastInsertId();
-
-            // Handle multiple supporting documents
+            // Handle file uploads separately and store paths in session
             if (!empty($_FILES['supporting_docs']['name'][0])) {
                 $upload_dir = __DIR__ . '/../uploads/';
                 if (!file_exists($upload_dir)) {
@@ -91,49 +55,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $file_path = $upload_dir . $file_name;
                         
                         if (move_uploaded_file($tmp_name, $file_path)) {
-                            // Insert document
-                            $stmt = $conn->prepare("INSERT INTO supporting_document (doc_link) VALUES (?)");
-                            $stmt->execute(['uploads/' . $file_name]);
-                            $doc_id = $conn->lastInsertId();
-
-                            // Link document to inquiry
-                            $stmt = $conn->prepare("INSERT INTO inquiry_document (inquiry_id, docs_id) VALUES (?, ?)");
-                            $stmt->execute([$inquiryId, $doc_id]);
+                            $_SESSION['temp_inquiry_data']['files'][] = 'uploads/' . $file_name; // Store relative path
+                        } else {
+                            throw new Exception("Failed to move uploaded file: " . $_FILES['supporting_docs']['name'][$key]);
                         }
                     }
                 }
             }
+            
+            // Redirect to busker selection page
+            header('Location: select_busker.php');
+            exit();
 
-            // Insert genres
-            if (!empty($_POST['genres'])) {
-                $stmt = $conn->prepare("
-                    INSERT INTO inquiry_genre (inquiry_id, genre_id)
-                    VALUES (?, ?)
-                ");
-                
-                foreach ($_POST['genres'] as $genreId) {
-                    $stmt->execute([$inquiryId, $genreId]);
-                }
-            }
-
-            // If specific busker was selected, create hire record
-            if ($busker_id) {
-                $stmt = $conn->prepare("
-                    INSERT INTO hire (inquiry_id, busker_id, payment_status)
-                    VALUES (?, ?, 'Pending')
-                ");
-                $stmt->execute([$inquiryId, $busker_id]);
-            }
-
-            $conn->commit();
-            $success = 'Your inquiry has been submitted successfully! We will contact you shortly.';
-        } catch(PDOException $e) {
-            $conn->rollBack();
-            error_log("Error submitting inquiry: " . $e->getMessage());
-            $error = 'An error occurred while submitting your inquiry. Please try again.';
+        } catch(Exception $e) {
+            error_log("Error collecting inquiry data: " . $e->getMessage());
+            $error = 'An error occurred while preparing your inquiry. Please try again. Error: ' . $e->getMessage();
         }
     }
 }
+
+// --- TEMPORARY DEBUGGING: Log $_POST and $_SESSION['temp_inquiry_data'] ---
+error_log("DEBUG: Contact Form POST Data: " . print_r($_POST, true));
+error_log("DEBUG: Temporary Inquiry Data in Session: " . print_r($_SESSION['temp_inquiry_data'], true));
+// --------------------------------------------------------------------------
 
 // Fetch available time slots
 try {
@@ -465,18 +409,12 @@ try {
                 <form method="POST" class="inquiry-form" enctype="multipart/form-data">
                     <div class="form-group">
                         <label for="event_name">Event Name</label>
-                        <input type="text" id="event_name" name="event_name" required>
+                        <input type="text" id="event_name" name="event_name" placeholder="e.g., Company Anniversary, Birthday Party" value="<?php echo htmlspecialchars($busker ? $busker['band_name'] . ' Performance' : ''); ?>" required>
                     </div>
 
                     <div class="form-group">
                         <label for="event_type">Event Type</label>
-                        <select id="event_type" name="event_type" required>
-                            <option value="">Select Event Type</option>
-                            <option value="Wedding">Wedding</option>
-                            <option value="Corporate">Corporate</option>
-                            <option value="Birthday">Birthday</option>
-                            <option value="Other">Other</option>
-                        </select>
+                        <input type="text" id="event_type" name="event_type" placeholder="e.g., Corporate Event, Wedding, Birthday" required>
                     </div>
 
                     <div class="form-group">
@@ -487,11 +425,9 @@ try {
                     <div class="form-group">
                         <label for="time_slot">Time Slot</label>
                         <select id="time_slot" name="time_slot" required>
-                            <option value="">Select Time Slot</option>
+                            <option value="">Select a time slot</option>
                             <?php foreach ($time_slots as $slot): ?>
-                                <option value="<?php echo $slot['time_slot_id']; ?>">
-                                    <?php echo date('g:i A', strtotime($slot['time'])); ?>
-                                </option>
+                                <option value="<?php echo htmlspecialchars($slot['time_slot_id']); ?>"><?php echo htmlspecialchars(date('g:i A', strtotime($slot['time']))); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -512,7 +448,7 @@ try {
                         <div id="existing-location">
                             <div class="location-search-container">
                                 <input type="text" id="locationSearch" placeholder="Search or select a location..." class="search-input" autocomplete="off">
-                                <input type="hidden" id="selected_location_id" name="location">
+                                <input type="hidden" id="selected_location_id" name="location" required>
                                 <div id="locationDropdown" class="location-dropdown"></div>
                             </div>
                         </div>
@@ -520,18 +456,41 @@ try {
                         <div id="custom-location" class="custom-location-fields">
                             <div class="form-group">
                                 <label for="custom_address">Address</label>
-                                <input type="text" id="custom_address" name="custom_address" placeholder="Enter complete address">
+                                <input type="text" id="custom_address" name="custom_address" placeholder="Enter address">
                             </div>
                             <div class="form-group">
                                 <label for="custom_city">City</label>
                                 <input type="text" id="custom_city" name="custom_city" placeholder="Enter city">
+                            </div>
+                            <div class="form-group">
+                                <label for="custom_region">Region</label>
+                                <select id="custom_region" name="custom_region">
+                                    <option value="">Select Region</option>
+                                    <option value="NCR">NCR</option>
+                                    <option value="CAR">CAR</option>
+                                    <option value="I">Region I - Ilocos Region</option>
+                                    <option value="II">Region II - Cagayan Valley</option>
+                                    <option value="III">Region III - Central Luzon</option>
+                                    <option value="IV-A">Region IV-A - CALABARZON</option>
+                                    <option value="IV-B">Region IV-B - MIMAROPA</option>
+                                    <option value="V">Region V - Bicol Region</option>
+                                    <option value="VI">Region VI - Western Visayas</option>
+                                    <option value="VII">Region VII - Central Visayas</option>
+                                    <option value="VIII">Region VIII - Eastern Visayas</option>
+                                    <option value="IX">Region IX - Zamboanga Peninsula</option>
+                                    <option value="X">Region X - Northern Mindanao</option>
+                                    <option value="XI">Region XI - Davao Region</option>
+                                    <option value="XII">Region XII - SOCCSKSARGEN</option>
+                                    <option value="XIII">Region XIII - Caraga</option>
+                                    <option value="BARMM">BARMM</option>
+                                </select>
                             </div>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="budget">Budget (PHP)</label>
-                        <input type="number" id="budget" name="budget" min="0" required>
+                        <input type="number" id="budget" name="budget" required>
                     </div>
 
                     <div class="form-group">
@@ -564,7 +523,9 @@ try {
                         <div id="file-list" class="file-list"></div>
                     </div>
 
-                    <button type="submit" class="btn primary">Submit Inquiry</button>
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-blue">Choose Busker</button>
+                    </div>
                 </form>
             <?php endif; ?>
         </div>
@@ -609,6 +570,7 @@ try {
             const selectedLocationId = document.getElementById('selected_location_id');
             const customAddress = document.getElementById('custom_address');
             const customCity = document.getElementById('custom_city');
+            const customRegionSelect = document.getElementById('custom_region');
 
             // Store all locations
             const locations = <?php echo json_encode($locations); ?>;
@@ -688,20 +650,21 @@ try {
                 if (selectedType === 'existing') {
                     existingLocation.style.display = 'block';
                     customLocation.classList.remove('active');
-                    selectedLocationId.required = true;
-                    customAddress.required = false;
-                    customCity.required = false;
-                    // Clear search when switching to custom
+                    selectedLocationId.setAttribute('required', 'required');
+                    customAddress.removeAttribute('required');
+                    customCity.removeAttribute('required');
                     locationSearch.value = '';
                     selectedLocationId.value = '';
                     selectedLocation = null;
                     locationDropdown.style.display = 'none';
+                    customRegionSelect.removeAttribute('required');
                 } else {
                     existingLocation.style.display = 'none';
                     customLocation.classList.add('active');
-                    selectedLocationId.required = false;
-                    customAddress.required = true;
-                    customCity.required = true;
+                    selectedLocationId.removeAttribute('required');
+                    customAddress.setAttribute('required', 'required');
+                    customCity.setAttribute('required', 'required');
+                    customRegionSelect.setAttribute('required', 'required');
                 }
             }
 
@@ -771,6 +734,16 @@ try {
                     if (file.size > maxSize) {
                         e.preventDefault();
                         alert(`File "${file.name}" is too large. Maximum file size is 5MB.`);
+                        return;
+                    }
+                }
+
+                // Validate existing location selection
+                const selectedType = document.querySelector('input[name="location_type"]:checked').value;
+                if (selectedType === 'existing') {
+                    if (!selectedLocationId.value || parseInt(selectedLocationId.value) === 0) {
+                        e.preventDefault();
+                        alert('Please select an existing location from the dropdown list.');
                         return;
                     }
                 }
