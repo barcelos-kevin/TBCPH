@@ -199,7 +199,7 @@ try {
     $error = 'Failed to load profile data.';
 }
 
-// Get busker's booking requests (inquiry_status = 'busker selected')
+// Get busker's booking requests (inquiry_status = 'approved' by admin)
 try {
     $stmt = $conn->prepare("
         SELECT 
@@ -230,14 +230,15 @@ try {
         JOIN client c ON i.client_id = c.client_id
         LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
         LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
-        WHERE h.busker_id = ? AND i.inquiry_status = 'busker selected'
+        WHERE h.busker_id = ? AND i.inquiry_status = 'approved'
         GROUP BY h.order_id
         ORDER BY e.event_date DESC
     ");
     $stmt->execute([$_SESSION['busker_id']]);
     $booking_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    error_log("Booking Requests: " . print_r($booking_requests, true));
 } catch (PDOException $e) {
-    $error = 'Error fetching booking requests: ' . $e->getMessage();
+    $error_message = 'Error fetching booking requests: ' . $e->getMessage();
 }
 
 // Get busker's upcoming events (inquiry_status = 'accepted' and event_date >= CURDATE())
@@ -560,7 +561,7 @@ try {
             <!-- Upcoming Bookings Tab Content -->
             <div class="tab-pane fade" id="upcoming" role="tabpanel">
                 <h2>Upcoming Bookings</h2>
-                <?php if (isset($error)): ?><!-- <div class="alert alert-danger"><?php echo $error; ?></div> --> <?php endif; ?>
+                <?php if (isset($error_message)): ?><!-- <div class="alert alert-danger"><?php echo $error_message; ?></div> --> <?php endif; ?>
 
                 <div class="table-responsive">
                     <table class="events-table">
@@ -573,13 +574,12 @@ try {
                                 <th>Client</th>
                                 <th>Payment Status</th>
                                 <th>Inquiry Status</th>
-                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($upcoming_events)): ?>
                                 <tr>
-                                    <td colspan="8" style="text-align: center;">No upcoming bookings found.</td>
+                                    <td colspan="7" style="text-align: center;">No upcoming bookings found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($upcoming_events as $event): ?>
@@ -599,12 +599,6 @@ try {
                                                 <?php echo ucfirst($event['inquiry_status']); ?>
                                             </span>
                                         </td>
-                                        <td>
-                                            <div class="action-buttons">
-                                                <!-- No specific actions here for now, just view details on row click -->
-                                                <button class="btn btn-info btn-sm" onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)">View</button>
-                                            </div>
-                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -616,7 +610,7 @@ try {
             <!-- Booking Requests Tab Content -->
             <div class="tab-pane fade" id="requests" role="tabpanel">
                 <h2>Booking Requests</h2>
-                <?php if (isset($error)): ?><!-- <div class="alert alert-danger"><?php echo $error; ?></div> --> <?php endif; ?>
+                <?php if (isset($error_message)): ?><!-- <div class="alert alert-danger"><?php echo $error_message; ?></div> --> <?php endif; ?>
 
                 <div class="table-responsive">
                     <table class="events-table">
@@ -628,13 +622,14 @@ try {
                                 <th>Time</th>
                                 <th>Client</th>
                                 <th>Budget</th>
+                                <th>Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($booking_requests)): ?>
                                 <tr>
-                                    <td colspan="7" style="text-align: center;">No pending booking requests.</td>
+                                    <td colspan="8" style="text-align: center;">No approved booking requests found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($booking_requests as $request): ?>
@@ -645,6 +640,11 @@ try {
                                         <td><?php echo $request['time_slot'] ? date('g:i A', strtotime($request['time_slot'])) : 'Not set'; ?></td>
                                         <td><?php echo htmlspecialchars($request['client_name']); ?></td>
                                         <td>₱<?php echo number_format($request['budget']); ?></td>
+                                        <td>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '.', $request['inquiry_status'])); ?>">
+                                                <?php echo ucfirst($request['inquiry_status']); ?>
+                                            </span>
+                                        </td>
                                         <td>
                                             <form action="" method="POST" class="d-inline-block me-2">
                                                 <input type="hidden" name="inquiry_id" value="<?php echo $request['inquiry_id']; ?>">
@@ -667,7 +667,7 @@ try {
             <!-- Past Events Tab Content -->
             <div class="tab-pane fade" id="past" role="tabpanel">
                 <h2>Past Events</h2>
-                <?php if (isset($error)): ?><!-- <div class="alert alert-danger"><?php echo $error; ?></div> --> <?php endif; ?>
+                <?php if (isset($error_message)): ?><!-- <div class="alert alert-danger"><?php echo $error_message; ?></div> --> <?php endif; ?>
 
                 <div class="table-responsive">
                     <table class="events-table">
@@ -680,13 +680,12 @@ try {
                                 <th>Client</th>
                                 <th>Payment Status</th>
                                 <th>Inquiry Status</th>
-                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($past_events)): ?>
                                 <tr>
-                                    <td colspan="8" style="text-align: center;">No past events found.</td>
+                                    <td colspan="7" style="text-align: center;">No past events found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($past_events as $event): ?>
@@ -705,12 +704,6 @@ try {
                                             <span class="status-badge <?php echo strtolower(str_replace(' ', '.', $event['inquiry_status'])); ?>">
                                                 <?php echo ucfirst($event['inquiry_status']); ?>
                                             </span>
-                                        </td>
-                                        <td>
-                                            <div class="action-buttons">
-                                                <!-- No specific actions here for now, just view details on row click -->
-                                                <button class="btn btn-info btn-sm" onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)">View</button>
-                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
