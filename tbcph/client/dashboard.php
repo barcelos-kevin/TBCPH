@@ -657,7 +657,7 @@ if (isset($_SESSION['error'])) {
                                     <td>
                                         <div class="action-buttons">
                                             <button class="btn-view" onclick="viewInquiry(<?php echo htmlspecialchars(json_encode($inquiry)); ?>)">View</button>
-                                        </div>
+                            </div>
                                     </td>
                                 </tr>
                         <?php endforeach; ?>

@@ -543,7 +543,7 @@ try {
                                     <option value="XII">Region XII - SOCCSKSARGEN</option>
                                     <option value="XIII">Region XIII - Caraga</option>
                                     <option value="BARMM">BARMM</option>
-                                </select>
+                        </select>
                             </div>
                         </div>
                     </div>

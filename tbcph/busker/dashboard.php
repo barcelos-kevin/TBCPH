@@ -6,6 +6,19 @@ require_once '../includes/config.php'; // Include the database configuration
 error_log("Session contents: " . print_r($_SESSION, true));
 error_log("POST contents: " . print_r($_POST, true));
 
+// Display and clear any session success/error messages
+$success_message = '';
+if (isset($_SESSION['success'])) {
+    $success_message = $_SESSION['success'];
+    unset($_SESSION['success']);
+}
+
+$error_message = '';
+if (isset($_SESSION['error'])) {
+    $error_message = $_SESSION['error'];
+    unset($_SESSION['error']);
+}
+
 if (!isset($_SESSION['busker_id'])) {
     error_log("No busker_id in session. Redirecting to index.php");
     header('Location: index.php');
@@ -20,6 +33,40 @@ $busker_equipment = [];
 $all_genres = [];
 $success = '';
 $error = '';
+
+// Handle booking request actions (Accept/Reject)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['accept_request']) || isset($_POST['reject_request']))) {
+    $inquiry_id = (int)$_POST['inquiry_id'];
+    $new_status = isset($_POST['accept_request']) ? 'accepted' : 'rejected';
+
+    try {
+        $conn->beginTransaction();
+
+        // Update inquiry status
+        $stmt = $conn->prepare("UPDATE inquiry SET inquiry_status = ? WHERE inquiry_id = ?");
+        $stmt->execute([$new_status, $inquiry_id]);
+
+        // If accepted, update hire record to confirmed (or similar, depending on your schema)
+        // Note: Your hire table only has payment_status. If you need a separate booking status for hire, it should be added.
+        // For now, we rely on inquiry_status to reflect busker acceptance.
+        if ($new_status === 'accepted') {
+            // Optionally, you might want to update a 'booking_status' in the hire table if it existed
+            // For example: UPDATE hire SET booking_status = 'confirmed' WHERE inquiry_id = ? AND busker_id = ?;
+            $success = 'Booking request accepted successfully!';
+        } else {
+            $success = 'Booking request rejected.';
+        }
+
+        $conn->commit();
+        header('Location: ' . $_SERVER['PHP_SELF'] . '?tab=requests');
+        exit();
+
+    } catch (PDOException $e) {
+        $conn->rollBack();
+        error_log("Error handling booking request: " . $e->getMessage());
+        $error = 'Error handling request: ' . $e->getMessage();
+    }
+}
 
 // Handle profile update form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
@@ -152,14 +199,170 @@ try {
     $error = 'Failed to load profile data.';
 }
 
-// This should be after all POST handling to display latest messages
-if (isset($_SESSION['success'])) {
-    $success = $_SESSION['success'];
-    unset($_SESSION['success']);
+// Get busker's booking requests (inquiry_status = 'busker selected')
+try {
+    $stmt = $conn->prepare("
+        SELECT 
+            h.order_id,
+            h.inquiry_id,
+            h.payment_status,
+            h.performance_time,
+            i.budget,
+            i.inquiry_status,
+            e.event_name,
+            e.event_type,
+            e.event_date,
+            e.venue_equipment,
+            e.description,
+            l.address,
+            l.city,
+            ts.time as time_slot,
+            c.name as client_name,
+            c.phone as client_contact,
+            c.email as client_email,
+            GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
+            GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links
+        FROM hire h
+        JOIN inquiry i ON h.inquiry_id = i.inquiry_id
+        JOIN event_table e ON i.event_id = e.event_id
+        LEFT JOIN location l ON e.location_id = l.location_id
+        LEFT JOIN time_slot ts ON e.time_slot_id = ts.time_slot_id
+        JOIN client c ON i.client_id = c.client_id
+        LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
+        LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
+        WHERE h.busker_id = ? AND i.inquiry_status = 'busker selected'
+        GROUP BY h.order_id
+        ORDER BY e.event_date DESC
+    ");
+    $stmt->execute([$_SESSION['busker_id']]);
+    $booking_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $error = 'Error fetching booking requests: ' . $e->getMessage();
 }
-if (isset($_SESSION['error'])) {
-    $error = $_SESSION['error'];
-    unset($_SESSION['error']);
+
+// Get busker's upcoming events (inquiry_status = 'accepted' and event_date >= CURDATE())
+try {
+    $stmt = $conn->prepare("
+        SELECT 
+            h.order_id,
+            h.inquiry_id,
+            h.payment_status,
+            h.performance_time,
+            i.budget,
+            i.inquiry_status,
+            e.event_name,
+            e.event_type,
+            e.event_date,
+            e.venue_equipment,
+            e.description,
+            l.address,
+            l.city,
+            ts.time as time_slot,
+            c.name as client_name,
+            c.phone as client_contact,
+            c.email as client_email,
+            GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
+            GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links
+        FROM hire h
+        JOIN inquiry i ON h.inquiry_id = i.inquiry_id
+        JOIN event_table e ON i.event_id = e.event_id
+        LEFT JOIN location l ON e.location_id = l.location_id
+        LEFT JOIN time_slot ts ON e.time_slot_id = ts.time_slot_id
+        JOIN client c ON i.client_id = c.client_id
+        LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
+        LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
+        WHERE h.busker_id = ? AND i.inquiry_status = 'accepted' AND e.event_date >= CURDATE()
+        GROUP BY h.order_id
+        ORDER BY e.event_date ASC
+    ");
+    $stmt->execute([$_SESSION['busker_id']]);
+    $upcoming_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $error = 'Error fetching upcoming events: ' . $e->getMessage();
+}
+
+// Get busker's past events (inquiry_status = 'accepted' and event_date < CURDATE())
+// Also includes events that were completed (e.g., inquiry_status = 'completed')
+try {
+    $stmt = $conn->prepare("
+        SELECT 
+            h.order_id,
+            h.inquiry_id,
+            h.payment_status,
+            h.performance_time,
+            i.budget,
+            i.inquiry_status,
+            e.event_name,
+            e.event_type,
+            e.event_date,
+            e.venue_equipment,
+            e.description,
+            l.address,
+            l.city,
+            ts.time as time_slot,
+            c.name as client_name,
+            c.phone as client_contact,
+            c.email as client_email,
+            GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
+            GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links
+        FROM hire h
+        JOIN inquiry i ON h.inquiry_id = i.inquiry_id
+        JOIN event_table e ON i.event_id = e.event_id
+        LEFT JOIN location l ON e.location_id = l.location_id
+        LEFT JOIN time_slot ts ON e.time_slot_id = ts.time_slot_id
+        JOIN client c ON i.client_id = c.client_id
+        LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
+        LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
+        WHERE h.busker_id = ? AND (i.inquiry_status = 'accepted' AND e.event_date < CURDATE() OR i.inquiry_status = 'completed')
+        GROUP BY h.order_id
+        ORDER BY e.event_date DESC
+    ");
+    $stmt->execute([$_SESSION['busker_id']]);
+    $past_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $error = 'Error fetching past events: ' . $e->getMessage();
+}
+
+// Get busker's hired events for document management (all except rejected/deleted)
+// Using a different variable name to avoid conflict with `events` for document management table
+try {
+    $stmt = $conn->prepare("
+        SELECT 
+            h.order_id,
+            h.inquiry_id,
+            h.payment_status,
+            h.performance_time,
+            i.budget,
+            i.inquiry_status,
+            e.event_name,
+            e.event_type,
+            e.event_date,
+            e.venue_equipment,
+            e.description,
+            l.address,
+            l.city,
+            ts.time as time_slot,
+            c.name as client_name,
+            c.phone as client_contact,
+            c.email as client_email,
+            GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
+            GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links
+        FROM hire h
+        JOIN inquiry i ON h.inquiry_id = i.inquiry_id
+        JOIN event_table e ON i.event_id = e.event_id
+        LEFT JOIN location l ON e.location_id = l.location_id
+        LEFT JOIN time_slot ts ON e.time_slot_id = ts.time_slot_id
+        JOIN client c ON i.client_id = c.client_id
+        LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
+        LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
+        WHERE h.busker_id = ? AND i.inquiry_status NOT IN ('rejected', 'deleted by client')
+        GROUP BY h.order_id
+        ORDER BY e.event_date DESC
+    ");
+    $stmt->execute([$_SESSION['busker_id']]);
+    $document_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $error = 'Error fetching events for document management: ' . $e->getMessage();
 }
 ?>
 <!DOCTYPE html>
@@ -256,6 +459,79 @@ if (isset($_SESSION['error'])) {
             padding-top: 20px;
             border-top: 1px solid #eee;
         }
+
+        /* Styles for new tables */
+        .events-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.07);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .events-table th,
+        .events-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+        }
+
+        .events-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+            white-space: nowrap;
+            min-width: fit-content;
+        }
+
+        .events-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.95em;
+            font-weight: 500;
+        }
+
+        .status-badge.pending { background: #f1c40f; color: #fff; }
+        .status-badge.approved { background: #28a745; color: #fff; } /* Added for accepted requests */
+        .status-badge.rejected { background: #dc3545; color: #fff; } /* Added for rejected requests */
+        .status-badge.completed { background: #6c757d; color: #fff; } /* Added for completed events */
+        .status-badge.busker.selected { background: #007bff; color: #fff; } /* Specific for busker selected status */
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            border-radius: 0.2rem;
+        }
+
+        .document-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .document-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .document-item i {
+            color: #007bff;
+        }
     </style>
 </head>
 <body>
@@ -281,18 +557,169 @@ if (isset($_SESSION['error'])) {
             </li>
         </ul>
         <div class="tab-content" id="dashboardTabsContent">
+            <!-- Upcoming Bookings Tab Content -->
             <div class="tab-pane fade" id="upcoming" role="tabpanel">
                 <h2>Upcoming Bookings</h2>
-                <!-- Content for upcoming bookings will go here -->
+                <?php if (isset($error)): ?><!-- <div class="alert alert-danger"><?php echo $error; ?></div> --> <?php endif; ?>
+
+                <div class="table-responsive">
+                    <table class="events-table">
+                        <thead>
+                            <tr>
+                                <th>Event Name</th>
+                                <th>Event Type</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Client</th>
+                                <th>Payment Status</th>
+                                <th>Inquiry Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($upcoming_events)): ?>
+                                <tr>
+                                    <td colspan="8" style="text-align: center;">No upcoming bookings found.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($upcoming_events as $event): ?>
+                                    <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)" style="cursor:pointer;">
+                                        <td><?php echo htmlspecialchars($event['event_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_type']); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($event['event_date'])); ?></td>
+                                        <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($event['client_name']); ?></td>
+                                        <td>
+                                            <span class="status-badge <?php echo strtolower($event['payment_status']); ?>">
+                                                <?php echo ucfirst($event['payment_status']); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '.', $event['inquiry_status'])); ?>">
+                                                <?php echo ucfirst($event['inquiry_status']); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="action-buttons">
+                                                <!-- No specific actions here for now, just view details on row click -->
+                                                <button class="btn btn-info btn-sm" onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)">View</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
+
+            <!-- Booking Requests Tab Content -->
             <div class="tab-pane fade" id="requests" role="tabpanel">
                 <h2>Booking Requests</h2>
-                <!-- Content for booking requests will go here -->
+                <?php if (isset($error)): ?><!-- <div class="alert alert-danger"><?php echo $error; ?></div> --> <?php endif; ?>
+
+                <div class="table-responsive">
+                    <table class="events-table">
+                        <thead>
+                            <tr>
+                                <th>Event Name</th>
+                                <th>Event Type</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Client</th>
+                                <th>Budget</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($booking_requests)): ?>
+                                <tr>
+                                    <td colspan="7" style="text-align: center;">No pending booking requests.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($booking_requests as $request): ?>
+                                    <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($request)); ?>)" style="cursor:pointer;">
+                                        <td><?php echo htmlspecialchars($request['event_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($request['event_type']); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($request['event_date'])); ?></td>
+                                        <td><?php echo $request['time_slot'] ? date('g:i A', strtotime($request['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($request['client_name']); ?></td>
+                                        <td>₱<?php echo number_format($request['budget']); ?></td>
+                                        <td>
+                                            <form action="" method="POST" class="d-inline-block me-2">
+                                                <input type="hidden" name="inquiry_id" value="<?php echo $request['inquiry_id']; ?>">
+                                                <button type="submit" name="accept_request" class="btn btn-success btn-sm">Accept</button>
+                                            </form>
+                                            <form action="" method="POST" class="d-inline-block">
+                                                <input type="hidden" name="inquiry_id" value="<?php echo $request['inquiry_id']; ?>">
+                                                <button type="submit" name="reject_request" class="btn btn-danger btn-sm">Reject</button>
+                                            </form>
+                                            <button class="btn btn-info btn-sm mt-1" onclick="viewEvent(<?php echo htmlspecialchars(json_encode($request)); ?>)">View</button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
+
+            <!-- Past Events Tab Content -->
             <div class="tab-pane fade" id="past" role="tabpanel">
                 <h2>Past Events</h2>
-                <!-- Content for past events will go here -->
+                <?php if (isset($error)): ?><!-- <div class="alert alert-danger"><?php echo $error; ?></div> --> <?php endif; ?>
+
+                <div class="table-responsive">
+                    <table class="events-table">
+                        <thead>
+                            <tr>
+                                <th>Event Name</th>
+                                <th>Event Type</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Client</th>
+                                <th>Payment Status</th>
+                                <th>Inquiry Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($past_events)): ?>
+                                <tr>
+                                    <td colspan="8" style="text-align: center;">No past events found.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($past_events as $event): ?>
+                                    <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)" style="cursor:pointer;">
+                                        <td><?php echo htmlspecialchars($event['event_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_type']); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($event['event_date'])); ?></td>
+                                        <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($event['client_name']); ?></td>
+                                        <td>
+                                            <span class="status-badge <?php echo strtolower($event['payment_status']); ?>">
+                                                <?php echo ucfirst($event['payment_status']); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '.', $event['inquiry_status'])); ?>">
+                                                <?php echo ucfirst($event['inquiry_status']); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="action-buttons">
+                                                <!-- No specific actions here for now, just view details on row click -->
+                                                <button class="btn btn-info btn-sm" onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)">View</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
+
             <div class="tab-pane fade show active" id="profile" role="tabpanel">
                 <h2>Profile Management</h2>
                 <?php if ($busker_data): ?>
@@ -300,7 +727,7 @@ if (isset($_SESSION['error'])) {
                         <div class="alert alert-success alert-fixed"><?php echo $success; ?></div>
                     <?php endif; ?>
                     <?php if (!empty($error)): ?>
-                        <div class="alert alert-danger alert-fixed"><?php echo $error; ?></div>
+                        <!-- <div class="alert alert-danger"><?php echo $error; ?></div> -->
                     <?php endif; ?>
 
                     <form action="" method="POST" class="profile-form">
@@ -382,7 +809,63 @@ if (isset($_SESSION['error'])) {
             </div>
             <div class="tab-pane fade" id="documents" role="tabpanel">
                 <h2>Document Management</h2>
-                <!-- Content for document management will go here -->
+                <?php if (isset($error)): ?><!-- <div class="alert alert-danger"><?php echo $error; ?></div> --> <?php endif; ?>
+
+                <div class="table-responsive">
+                    <table class="events-table">
+                        <thead>
+                            <tr>
+                                <th>Event Name</th>
+                                <th>Event Type</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Client</th>
+                                <th>Payment Status</th>
+                                <th>Documents</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($document_events)): ?>
+                                <tr>
+                                    <td colspan="7" style="text-align: center;">No events found.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($document_events as $event): ?>
+                                    <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)" style="cursor:pointer;">
+                                        <td><?php echo htmlspecialchars($event['event_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_type']); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($event['event_date'])); ?></td>
+                                        <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($event['client_name']); ?></td>
+                                        <td>
+                                            <span class="status-badge <?php echo strtolower($event['payment_status']); ?>">
+                                                <?php echo ucfirst($event['payment_status']); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="document-list">
+                                                <?php if ($event['doc_links']): ?>
+                                                    <?php
+                                                    $docLinks = explode(',', $event['doc_links']);
+                                                    foreach ($docLinks as $index => $link): ?>
+                                                        <div class="document-item">
+                                                            <a href="/tbcph/<?php echo htmlspecialchars($link); ?>" target="_blank">
+                                                                <i class="fas fa-file-pdf"></i>
+                                                                Document <?php echo $index + 1; ?>
+                                                            </a>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                <?php else: ?>
+                                                    <p>No documents uploaded</p>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -427,8 +910,17 @@ if (isset($_SESSION['error'])) {
         </div>
     </div>
 
+    <!-- View Modal -->
+    <div id="viewModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeViewModal()">&times;</span>
+            <h2>Event Details</h2>
+            <div id="viewContent"></div>
+        </div>
+    </div>
+
     <?php include '../includes/footer.php'; ?>
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
@@ -437,6 +929,9 @@ if (isset($_SESSION['error'])) {
             const tab = urlParams.get('tab');
             if (tab) {
                 $(`#dashboardTabs a[href="#${tab}"]`).tab('show');
+            } else {
+                // Default to 'requests' tab if no tab is specified
+                $(`#dashboardTabs a[href="#requests"]`).tab('show');
             }
             
             // Fade out alerts after a few seconds
@@ -449,6 +944,72 @@ if (isset($_SESSION['error'])) {
                 $(this).find('form')[0].reset();
             });
         });
+
+        function viewEvent(event) {
+            const modal = document.getElementById('viewModal');
+            const content = document.getElementById('viewContent');
+            content.innerHTML = `
+                <div class="detail-section">
+                    <h3><i class="fas fa-calendar-alt"></i> Event Information</h3>
+                    <p><strong>Event Name:</strong> ${event.event_name}</p>
+                    <p><strong>Event Type:</strong> ${event.event_type}</p>
+                    <p><strong>Event Date:</strong> ${new Date(event.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <p><strong>Time Slot:</strong> ${event.time_slot ? new Date('1970-01-01T' + event.time_slot).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
+                </div>
+
+                <div class="detail-section">
+                    <h3><i class="fas fa-map-marker-alt"></i> Location</h3>
+                    <p><strong>Address:</strong> ${event.address || 'Not specified'}</p>
+                    <p><strong>City:</strong> ${event.city || 'Not specified'}</p>
+                </div>
+
+                <div class="detail-section">
+                    <h3><i class="fas fa-user"></i> Client Information</h3>
+                    <p><strong>Name:</strong> ${event.client_name}</p>
+                    <p><strong>Contact:</strong> ${event.client_contact || 'Not provided'}</p>
+                    <p><strong>Email:</strong> ${event.client_email}</p>
+                </div>
+
+                <div class="detail-section">
+                    <h3><i class="fas fa-info-circle"></i> Event Details</h3>
+                    <p><strong>Budget:</strong> ₱${Number(event.budget).toLocaleString()}</p>
+                    <p><strong>Payment Status:</strong> <span class="status-badge ${event.payment_status.toLowerCase()}">${event.payment_status}</span></p>
+                    <p><strong>Performance Time:</strong> ${event.performance_time ? new Date('1970-01-01T' + event.performance_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
+                </div>
+
+                <div class="detail-section">
+                    <h3><i class="fas fa-tools"></i> Venue Equipment</h3>
+                    <p>${event.venue_equipment || 'None specified'}</p>
+                </div>
+
+                <div class="detail-section">
+                    <h3><i class="fas fa-file-alt"></i> Supporting Documents</h3>
+                    <div class="document-list">
+                        ${event.doc_links ? event.doc_links.split(',').map((link, index) => `
+                            <div class="document-item">
+                                <a href="/tbcph/${link}" target="_blank">
+                                    <i class="fas fa-file-pdf"></i>
+                                    Document ${index + 1}
+                                </a>
+                            </div>
+                        `).join('') : '<p>No documents uploaded</p>'}
+                    </div>
+                </div>
+            `;
+            modal.style.display = 'block';
+        }
+
+        function closeViewModal() {
+            document.getElementById('viewModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('viewModal');
+            if (event.target == modal) {
+                closeViewModal();
+            }
+        }
     </script>
 </body>
 </html> 
