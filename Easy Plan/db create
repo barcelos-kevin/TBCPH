@@ -13,7 +13,7 @@ CREATE TABLE location (
     location_id INT PRIMARY KEY AUTO_INCREMENT,
     address VARCHAR(500) NOT NULL,
     city VARCHAR(100) NOT NULL,
-    region VARCHAR(100) NOT NULL
+    is_custom BOOLEAN DEFAULT 0
 );
 
 -- Create Time Slot table
@@ -28,6 +28,7 @@ CREATE TABLE client (
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(50),
+    address VARCHAR(500),
     password VARCHAR(255) NOT NULL
 );
 

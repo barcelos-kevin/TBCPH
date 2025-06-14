@@ -30,13 +30,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $location_id = null;
             if ($_POST['location_type'] === 'custom') {
                 $stmt = $conn->prepare("
-                    INSERT INTO location (address, city, region)
-                    VALUES (?, ?, ?)
+                    INSERT INTO location (address, city)
+                    VALUES (?, ?)
                 ");
                 $stmt->execute([
                     $_POST['custom_address'],
-                    $_POST['custom_city'],
-                    $_POST['custom_region']
+                    $_POST['custom_city']
                 ]);
                 $location_id = $conn->lastInsertId();
             } else {
@@ -136,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // --- TEMPORARY DEBUGGING: Log $_POST and $_SESSION['temp_inquiry_data'] ---
 error_log("DEBUG: Contact Form POST Data: " . print_r($_POST, true));
-error_log("DEBUG: Temporary Inquiry Data in Session: " . print_r($_SESSION['temp_inquiry_data'], true));
+error_log("DEBUG: Temporary Inquiry Data in Session: " . print_r(isset($_SESSION['temp_inquiry_data']) ? $_SESSION['temp_inquiry_data'] : 'Not set', true));
 // --------------------------------------------------------------------------
 
 // Fetch available time slots
@@ -522,29 +521,6 @@ try {
                                 <label for="custom_city">City</label>
                                 <input type="text" id="custom_city" name="custom_city" placeholder="Enter city">
                             </div>
-                            <div class="form-group">
-                                <label for="custom_region">Region</label>
-                                <select id="custom_region" name="custom_region">
-                                    <option value="">Select Region</option>
-                                    <option value="NCR">NCR</option>
-                                    <option value="CAR">CAR</option>
-                                    <option value="I">Region I - Ilocos Region</option>
-                                    <option value="II">Region II - Cagayan Valley</option>
-                                    <option value="III">Region III - Central Luzon</option>
-                                    <option value="IV-A">Region IV-A - CALABARZON</option>
-                                    <option value="IV-B">Region IV-B - MIMAROPA</option>
-                                    <option value="V">Region V - Bicol Region</option>
-                                    <option value="VI">Region VI - Western Visayas</option>
-                                    <option value="VII">Region VII - Central Visayas</option>
-                                    <option value="VIII">Region VIII - Eastern Visayas</option>
-                                    <option value="IX">Region IX - Zamboanga Peninsula</option>
-                                    <option value="X">Region X - Northern Mindanao</option>
-                                    <option value="XI">Region XI - Davao Region</option>
-                                    <option value="XII">Region XII - SOCCSKSARGEN</option>
-                                    <option value="XIII">Region XIII - Caraga</option>
-                                    <option value="BARMM">BARMM</option>
-                        </select>
-                            </div>
                         </div>
                     </div>
 
@@ -630,7 +606,6 @@ try {
             const selectedLocationId = document.getElementById('selected_location_id');
             const customAddress = document.getElementById('custom_address');
             const customCity = document.getElementById('custom_city');
-            const customRegionSelect = document.getElementById('custom_region');
 
             // Store all locations
             const locations = <?php echo json_encode($locations); ?>;
@@ -717,14 +692,12 @@ try {
                     selectedLocationId.value = '';
                     selectedLocation = null;
                     locationDropdown.style.display = 'none';
-                    customRegionSelect.removeAttribute('required');
                 } else {
                     existingLocation.style.display = 'none';
                     customLocation.classList.add('active');
                     selectedLocationId.removeAttribute('required');
                     customAddress.setAttribute('required', 'required');
                     customCity.setAttribute('required', 'required');
-                    customRegionSelect.setAttribute('required', 'required');
                 }
             }
 
