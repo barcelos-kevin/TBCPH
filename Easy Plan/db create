@@ -165,17 +165,17 @@ INSERT INTO time_slot (time) VALUES
 ('18:00:00'), ('19:00:00'), ('20:00:00'), ('21:00:00'), ('22:00:00');
 
 -- Insert Location data
-INSERT INTO location (address, city, region) VALUES 
-('Rizal Park, Manila', 'Manila', 'NCR'),
-('SM Mall of Asia Concert Grounds', 'Pasay', 'NCR'),
-('Ayala Triangle Gardens', 'Makati', 'NCR'),
-('Eastwood City Open Park', 'Quezon City', 'NCR'),
-('BGC Central Plaza', 'Taguig', 'NCR'),
-('UP Sunken Garden', 'Quezon City', 'NCR'),
-('La Mesa Eco Park', 'Quezon City', 'NCR'),
-('Marikina Sports Center', 'Marikina', 'NCR'),
-('Quezon Memorial Circle', 'Quezon City', 'NCR'),
-('Cultural Center of the Philippines', 'Pasay', 'NCR');
+INSERT INTO location (address, city, is_custom) VALUES 
+('Rizal Park, Manila', 'Manila', 0),
+('SM Mall of Asia Concert Grounds', 'Pasay', 0),
+('Ayala Triangle Gardens', 'Makati', 0),
+('Eastwood City Open Park', 'Quezon City', 0),
+('BGC Central Plaza', 'Taguig', 0),
+('UP Sunken Garden', 'Quezon City', 0),
+('La Mesa Eco Park', 'Quezon City', 0),
+('Marikina Sports Center', 'Marikina', 0),
+('Quezon Memorial Circle', 'Quezon City', 0),
+('Cultural Center of the Philippines', 'Pasay', 0);
 
 -- Insert Genre data
 INSERT INTO genre (name, description) VALUES 
