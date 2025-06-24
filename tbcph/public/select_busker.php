@@ -50,10 +50,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $conn->prepare("INSERT INTO hire (inquiry_id, busker_id, payment_status) VALUES (?, ?, 'pending')");
                 $stmt->execute([$inquiry_id, $busker_id]);
                 
-                // Update inquiry status
-                $stmt = $conn->prepare("UPDATE inquiry SET inquiry_status = 'busker selected' WHERE inquiry_id = ?");
-                $stmt->execute([$inquiry_id]);
-                
                 $conn->commit();
                 redirectWithMessage('/tbcph/client/dashboard.php', 'Busker selected successfully!', 'success');
             } catch(Exception $e) {
