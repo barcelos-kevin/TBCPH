@@ -71,12 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 4. Insert Inquiry
             $stmt = $conn->prepare("
                 INSERT INTO inquiry (
-                    client_id, event_id, budget, inquiry_status
-                ) VALUES (?, ?, ?, 'pending')
+                    client_id, event_id, inquiry_date, budget, inquiry_status
+                ) VALUES (?, ?, ?, ?, 'pending')
             ");
             $stmt->execute([
                 $_SESSION['client_id'],
                 $event_id,
+                (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d H:i:s'),
                 $_POST['budget']
             ]);
             $inquiry_id = $conn->lastInsertId();

@@ -144,6 +144,7 @@ try {
             i.inquiry_id,
             i.budget,
             i.inquiry_status,
+            i.inquiry_date,
             e.event_id,
             e.event_name,
             e.event_date,
@@ -623,7 +624,7 @@ if (isset($_SESSION['error'])) {
                             <th>Event Name</th>
                             <th>Event Type</th>
                             <th>Date</th>
-                            <th>Time</th>
+                            <th>Inquiry Created</th>
                             <th>Budget</th>
                             <th>Hired Busker</th>
                             <th>Status</th>
@@ -641,7 +642,7 @@ if (isset($_SESSION['error'])) {
                                     <td><?php echo htmlspecialchars($inquiry['event_name']); ?></td>
                                     <td><?php echo htmlspecialchars($inquiry['event_type']); ?></td>
                                     <td><?php echo date('F j, Y', strtotime($inquiry['event_date'])); ?></td>
-                                    <td><?php echo ($inquiry['start_time'] && $inquiry['end_time']) ? date('g:i A', strtotime($inquiry['start_time'])) . ' - ' . date('g:i A', strtotime($inquiry['end_time'])) : 'Not set'; ?></td>
+                                    <td><?php echo $inquiry['inquiry_date'] ? date('F j, Y g:i A', strtotime($inquiry['inquiry_date'])) : 'Not set'; ?></td>
                                     <td>₱<?php echo number_format($inquiry['budget']); ?></td>
                                     <td>
                                         <?php if ($inquiry['hired_busker_id']): ?>
@@ -789,6 +790,7 @@ if (isset($_SESSION['error'])) {
                     <p><strong>Event Name:</strong> ${inquiry.event_name}</p>
                     <p><strong>Event Type:</strong> ${inquiry.event_type}</p>
                     <p><strong>Event Date:</strong> ${new Date(inquiry.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <p><strong>Inquiry Created:</strong> ${inquiry.inquiry_date ? new Date(inquiry.inquiry_date.replace(' ', 'T')).toLocaleString('en-PH', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
                     <p><strong>Time Slot:</strong> ${(inquiry.start_time && inquiry.end_time) ?
                         (new Date('1970-01-01T' + inquiry.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) + ' - ' +
                          new Date('1970-01-01T' + inquiry.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })) : 'Not set'}</p>

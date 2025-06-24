@@ -80,7 +80,7 @@ CREATE TABLE inquiry (
     inquiry_id INT PRIMARY KEY AUTO_INCREMENT,
     client_id INT NOT NULL,
     event_id INT,
-    inquiry_date_id INT,
+    inquiry_date DATETIME,
     budget INT,
     inquiry_status VARCHAR(50),
     FOREIGN KEY (client_id) REFERENCES client(client_id),
@@ -264,22 +264,22 @@ INSERT INTO supporting_document (doc_link) VALUES
 ('uploads/insurance4.pdf');
 
 -- Insert Inquiry data
-INSERT INTO inquiry (client_id, event_id, inquiry_date_id, budget, inquiry_status) VALUES 
-(1, 1, 1, 15000, 'pending'),
-(2, 2, 2, 8000, 'approved'),
-(3, 3, 3, 25000, 'completed'),
-(4, 4, 4, 5000, 'pending'),
-(5, 5, 5, 12000, 'approved'),
-(6, 6, 6, 7000, 'rejected'),
-(7, 7, 7, 18000, 'pending'),
-(8, 8, 8, 20000, 'approved'),
-(9, 9, 9, 30000, 'completed'),
-(10, 10, 10, 6000, 'pending'),
-(1, 11, 11, 22000, 'approved'),
-(2, 12, 12, 9000, 'pending'),
-(3, 1, 13, 16000, 'rejected'),
-(4, 2, 14, 8500, 'pending'),
-(5, 3, 15, 26000, 'approved');
+INSERT INTO inquiry (client_id, event_id, inquiry_date, budget, inquiry_status) VALUES 
+(1, 1, '2025-07-01 10:00:00', 15000, 'pending'),
+(2, 2, '2025-06-20 14:00:00', 8000, 'approved'),
+(3, 3, '2025-06-01 10:00:00', 25000, 'completed'),
+(4, 4, '2025-06-01 10:00:00', 5000, 'pending'),
+(5, 5, '2025-06-25 15:00:00', 12000, 'approved'),
+(6, 6, '2025-06-01 10:00:00', 7000, 'rejected'),
+(7, 7, '2025-06-01 10:00:00', 18000, 'pending'),
+(8, 8, '2025-06-01 10:00:00', 20000, 'approved'),
+(9, 9, '2025-06-01 10:00:00', 30000, 'completed'),
+(10, 10, '2025-06-01 10:00:00', 6000, 'pending'),
+(1, 11, '2025-07-01 10:00:00', 22000, 'approved'),
+(2, 12, '2025-06-01 10:00:00', 9000, 'pending'),
+(3, 1, '2025-06-01 10:00:00', 16000, 'rejected'),
+(4, 2, '2025-06-01 10:00:00', 8500, 'pending'),
+(5, 3, '2025-06-01 10:00:00', 26000, 'approved');
 
 -- Insert Inquiry Document data
 INSERT INTO inquiry_document (inquiry_id, docs_id) VALUES 
