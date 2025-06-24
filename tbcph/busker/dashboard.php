@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once '../includes/config.php'; // Include the database configuration
 
 // Debug session information
@@ -35,9 +34,9 @@ $success = '';
 $error = '';
 
 // Handle booking request actions (Accept/Reject)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['accept_request']) || isset($_POST['reject_request']))) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['confirm_request']) || isset($_POST['reject_request']))) {
     $inquiry_id = (int)$_POST['inquiry_id'];
-    $new_status = isset($_POST['accept_request']) ? 'accepted' : 'rejected';
+    $new_status = isset($_POST['confirm_request']) ? 'confirmed' : 'rejected';
 
     try {
         $conn->beginTransaction();
@@ -46,13 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['accept_request']) ||
         $stmt = $conn->prepare("UPDATE inquiry SET inquiry_status = ? WHERE inquiry_id = ?");
         $stmt->execute([$new_status, $inquiry_id]);
 
-        // If accepted, update hire record to confirmed (or similar, depending on your schema)
-        // Note: Your hire table only has payment_status. If you need a separate booking status for hire, it should be added.
-        // For now, we rely on inquiry_status to reflect busker acceptance.
-        if ($new_status === 'accepted') {
-            // Optionally, you might want to update a 'booking_status' in the hire table if it existed
-            // For example: UPDATE hire SET booking_status = 'confirmed' WHERE inquiry_id = ? AND busker_id = ?;
-            $success = 'Booking request accepted successfully!';
+        if ($new_status === 'confirmed') {
+            $success = 'Booking request confirmed successfully!';
         } else {
             $success = 'Booking request rejected.';
         }
@@ -202,41 +196,21 @@ try {
 // Get busker's booking requests (inquiry_status = 'approved' by admin)
 try {
     $stmt = $conn->prepare("
-        SELECT 
-            h.order_id,
-            h.inquiry_id,
-            h.payment_status,
-            h.performance_time,
-            i.budget,
-            i.inquiry_status,
-            e.event_name,
-            e.event_type,
-            e.event_date,
-            e.venue_equipment,
-            e.description,
-            l.address,
-            l.city,
-            ts.time as time_slot,
-            c.name as client_name,
-            c.phone as client_contact,
-            c.email as client_email,
-            GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
-            GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links
+        SELECT h.order_id, h.inquiry_id, h.payment_status, h.performance_time,
+               i.budget, i.inquiry_status,
+               e.event_name, e.event_type, e.event_date, e.venue_equipment, e.description,
+               c.name as client_name, c.phone as client_contact, c.email as client_email,
+               ts.start_time, ts.end_time
         FROM hire h
         JOIN inquiry i ON h.inquiry_id = i.inquiry_id
         JOIN event_table e ON i.event_id = e.event_id
-        LEFT JOIN location l ON e.location_id = l.location_id
-        LEFT JOIN time_slot ts ON e.time_slot_id = ts.time_slot_id
         JOIN client c ON i.client_id = c.client_id
-        LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
-        LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
+        LEFT JOIN time_slot ts ON e.time_slot_id = ts.time_slot_id
         WHERE h.busker_id = ? AND i.inquiry_status = 'approved'
-        GROUP BY h.order_id
         ORDER BY e.event_date DESC
     ");
     $stmt->execute([$_SESSION['busker_id']]);
     $booking_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    error_log("Booking Requests: " . print_r($booking_requests, true));
 } catch (PDOException $e) {
     $error_message = 'Error fetching booking requests: ' . $e->getMessage();
 }
@@ -272,7 +246,7 @@ try {
         JOIN client c ON i.client_id = c.client_id
         LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
         LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
-        WHERE h.busker_id = ? AND i.inquiry_status = 'accepted' AND e.event_date >= CURDATE()
+        WHERE h.busker_id = ? AND (i.inquiry_status = 'accepted' OR i.inquiry_status = 'confirmed') AND e.event_date >= CURDATE()
         GROUP BY h.order_id
         ORDER BY e.event_date ASC
     ");
@@ -393,6 +367,13 @@ function getBuskerStatus($status) {
         default:
             return ucfirst($status);
     }
+}
+
+// After fetching $upcoming_events, print its contents
+if (isset($upcoming_events)) {
+    echo "<pre style='background:#fff;color:#000;z-index:9999;position:relative;'>";
+    print_r($upcoming_events);
+    echo "</pre>";
 }
 ?>
 <!DOCTYPE html>
@@ -565,6 +546,113 @@ function getBuskerStatus($status) {
         .document-item i {
             color: #007bff;
         }
+
+        /* Improved View Modal Styles */
+        #viewModal.modal {
+            display: none;
+            position: fixed;
+            z-index: 3000;
+            left: 0;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: auto;
+            background: rgba(0,0,0,0.4);
+            align-items: center;
+            justify-content: center;
+        }
+        #viewModal .modal-content {
+            background: #fff;
+            margin: 40px auto;
+            padding: 32px 32px 24px 32px;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 95%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            position: relative;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #viewModal .close-button {
+            position: absolute;
+            top: 18px;
+            right: 24px;
+            font-size: 2rem;
+            color: #888;
+            cursor: pointer;
+            transition: color 0.2s;
+            z-index: 10;
+        }
+        #viewModal .close-button:hover {
+            color: #e74c3c;
+        }
+        #viewModal h2 {
+            margin-top: 0;
+            margin-bottom: 18px;
+            font-size: 2rem;
+            color: #2c3e50;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 8px;
+        }
+        #viewModal .detail-section {
+            margin-bottom: 22px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        #viewModal .detail-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        #viewModal h3 {
+            font-size: 1.15rem;
+            color: #2980b9;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #viewModal p {
+            margin: 4px 0 8px 0;
+            color: #222;
+            font-size: 1rem;
+        }
+        #viewModal .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 0.95em;
+            font-weight: 500;
+            background: #fff3cd;
+            color: #856404;
+            margin-left: 6px;
+        }
+        #viewModal .document-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        #viewModal .document-item a {
+            color: #007bff;
+            text-decoration: none;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        #viewModal .document-item a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 700px) {
+            #viewModal .modal-content {
+                padding: 18px 6px 12px 6px;
+                max-width: 98vw;
+            }
+            #viewModal h2 {
+                font-size: 1.3rem;
+            }
+            #viewModal h3 {
+                font-size: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -611,19 +699,30 @@ function getBuskerStatus($status) {
                         <tbody>
                             <?php if (empty($upcoming_events)): ?>
                                 <tr>
-                                    <td colspan="7" style="text-align: center;">No upcoming bookings found.</td>
+                                    <td colspan="6" style="text-align: center;">No upcoming bookings found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($upcoming_events as $event): ?>
                                     <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)" style="cursor:pointer;">
-                                        <td><?php echo htmlspecialchars($event['event_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($event['event_type']); ?></td>
-                                        <td><?php echo date('F j, Y', strtotime($event['event_date'])); ?></td>
-                                        <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_name'] ?? ''); ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_type'] ?? ''); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($event['event_date'] ?? '')); ?></td>
+                                        <td>
+                                            <?php
+                                            if (!empty($event['start_time']) && !empty($event['end_time'])) {
+                                                $tz = new DateTimeZone('Asia/Manila');
+                                                $start = new DateTime($event['start_time'], $tz);
+                                                $end = new DateTime($event['end_time'], $tz);
+                                                echo $start->format('g:i A') . ' - ' . $end->format('g:i A');
+                                            } else {
+                                                echo 'Not set';
+                                            }
+                                            ?>
+                                        </td>
                                         <td><?php echo htmlspecialchars($event['client_name']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($event['payment_status']))); ?>">
-                                                <?php echo getBuskerStatus($event['payment_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', $event['payment_status'])); ?>">
+                                                <?php echo ucfirst($event['payment_status']); ?>
                                             </span>
                                         </td>
                                         <td>
@@ -661,15 +760,26 @@ function getBuskerStatus($status) {
                         <tbody>
                             <?php if (empty($booking_requests)): ?>
                                 <tr>
-                                    <td colspan="8" style="text-align: center;">No approved booking requests found.</td>
+                                    <td colspan="7" style="text-align: center;">No approved booking requests found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($booking_requests as $request): ?>
                                     <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($request)); ?>)" style="cursor:pointer;">
-                                        <td><?php echo htmlspecialchars($request['event_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($request['event_type']); ?></td>
-                                        <td><?php echo date('F j, Y', strtotime($request['event_date'])); ?></td>
-                                        <td><?php echo $request['time_slot'] ? date('g:i A', strtotime($request['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($request['event_name'] ?? ''); ?></td>
+                                        <td><?php echo htmlspecialchars($request['event_type'] ?? ''); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($request['event_date'] ?? '')); ?></td>
+                                        <td>
+                                            <?php
+                                            if (!empty($request['start_time']) && !empty($request['end_time'])) {
+                                                $tz = new DateTimeZone('Asia/Manila');
+                                                $start = new DateTime($request['start_time'], $tz);
+                                                $end = new DateTime($request['end_time'], $tz);
+                                                echo $start->format('g:i A') . ' - ' . $end->format('g:i A');
+                                            } else {
+                                                echo 'Not set';
+                                            }
+                                            ?>
+                                        </td>
                                         <td><?php echo htmlspecialchars($request['client_name']); ?></td>
                                         <td>₱<?php echo number_format($request['budget']); ?></td>
                                         <td>
@@ -680,7 +790,7 @@ function getBuskerStatus($status) {
                                         <td>
                                             <form action="" method="POST" class="d-inline-block me-2">
                                                 <input type="hidden" name="inquiry_id" value="<?php echo $request['inquiry_id']; ?>">
-                                                <button type="submit" name="accept_request" class="btn btn-success btn-sm">Accept</button>
+                                                <button type="submit" name="confirm_request" class="btn btn-success btn-sm">Confirm</button>
                                             </form>
                                             <form action="" method="POST" class="d-inline-block">
                                                 <input type="hidden" name="inquiry_id" value="<?php echo $request['inquiry_id']; ?>">
@@ -717,19 +827,30 @@ function getBuskerStatus($status) {
                         <tbody>
                             <?php if (empty($past_events)): ?>
                                 <tr>
-                                    <td colspan="7" style="text-align: center;">No past events found.</td>
+                                    <td colspan="6" style="text-align: center;">No past events found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($past_events as $event): ?>
                                     <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)" style="cursor:pointer;">
-                                        <td><?php echo htmlspecialchars($event['event_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($event['event_type']); ?></td>
-                                        <td><?php echo date('F j, Y', strtotime($event['event_date'])); ?></td>
-                                        <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_name'] ?? ''); ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_type'] ?? ''); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($event['event_date'] ?? '')); ?></td>
+                                        <td>
+                                            <?php
+                                            if (!empty($event['start_time']) && !empty($event['end_time'])) {
+                                                $tz = new DateTimeZone('Asia/Manila');
+                                                $start = new DateTime($event['start_time'], $tz);
+                                                $end = new DateTime($event['end_time'], $tz);
+                                                echo $start->format('g:i A') . ' - ' . $end->format('g:i A');
+                                            } else {
+                                                echo 'Not set';
+                                            }
+                                            ?>
+                                        </td>
                                         <td><?php echo htmlspecialchars($event['client_name']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($event['payment_status']))); ?>">
-                                                <?php echo getBuskerStatus($event['payment_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', $event['payment_status'])); ?>">
+                                                <?php echo ucfirst($event['payment_status']); ?>
                                             </span>
                                         </td>
                                         <td>
@@ -807,7 +928,7 @@ function getBuskerStatus($status) {
                                 <ul>
                                     <?php foreach ($busker_equipment as $eq): ?>
                                         <li>
-                                            <?php echo htmlspecialchars($eq['equipment_name']) . ' (' . htmlspecialchars($eq['quantity']) . ', ' . htmlspecialchars($eq['eq_condition']) . ')'; ?>
+                                            <?php echo htmlspecialchars($eq['equipment_name'] ?? '') . ' (' . htmlspecialchars($eq['quantity'] ?? '') . ', ' . htmlspecialchars($eq['eq_condition'] ?? '') . ')'; ?>
                                             <form action="" method="POST" style="display:inline;">
                                                 <input type="hidden" name="delete_equipment" value="1">
                                                 <input type="hidden" name="equipment_id" value="<?php echo $eq['equipment_id']; ?>">
@@ -843,28 +964,27 @@ function getBuskerStatus($status) {
                                 <th>Event Name</th>
                                 <th>Event Type</th>
                                 <th>Date</th>
-                                <th>Time</th>
                                 <th>Client</th>
                                 <th>Payment Status</th>
                                 <th>Documents</th>
+                                <th>Time</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($document_events)): ?>
                                 <tr>
-                                    <td colspan="7" style="text-align: center;">No events found.</td>
+                                    <td colspan="6" style="text-align: center;">No events found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($document_events as $event): ?>
                                     <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)" style="cursor:pointer;">
-                                        <td><?php echo htmlspecialchars($event['event_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($event['event_type']); ?></td>
-                                        <td><?php echo date('F j, Y', strtotime($event['event_date'])); ?></td>
-                                        <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_name'] ?? ''); ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_type'] ?? ''); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($event['event_date'] ?? '')); ?></td>
                                         <td><?php echo htmlspecialchars($event['client_name']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($event['payment_status']))); ?>">
-                                                <?php echo getBuskerStatus($event['payment_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', $event['payment_status'])); ?>">
+                                                <?php echo ucfirst($event['payment_status']); ?>
                                             </span>
                                         </td>
                                         <td>
@@ -884,6 +1004,18 @@ function getBuskerStatus($status) {
                                                     <p>No documents uploaded</p>
                                                 <?php endif; ?>
                                             </div>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            if (!empty($event['start_time']) && !empty($event['end_time'])) {
+                                                $tz = new DateTimeZone('Asia/Manila');
+                                                $start = new DateTime($event['start_time'], $tz);
+                                                $end = new DateTime($event['end_time'], $tz);
+                                                echo $start->format('g:i A') . ' - ' . $end->format('g:i A');
+                                            } else {
+                                                echo 'Not set';
+                                            }
+                                            ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -944,7 +1076,6 @@ function getBuskerStatus($status) {
         </div>
     </div>
 
-    <?php include '../includes/footer.php'; ?>
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
@@ -976,37 +1107,33 @@ function getBuskerStatus($status) {
             content.innerHTML = `
                 <div class="detail-section">
                     <h3><i class="fas fa-calendar-alt"></i> Event Information</h3>
-                    <p><strong>Event Name:</strong> ${event.event_name}</p>
-                    <p><strong>Event Type:</strong> ${event.event_type}</p>
-                    <p><strong>Event Date:</strong> ${new Date(event.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    <p><strong>Time Slot:</strong> ${event.time_slot ? new Date('1970-01-01T' + event.time_slot).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
+                    <p><strong>Event Name:</strong> ${event.event_name || 'N/A'}</p>
+                    <p><strong>Event Type:</strong> ${event.event_type || 'N/A'}</p>
+                    <p><strong>Event Date:</strong> ${event.event_date ? new Date(event.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
                 </div>
-
                 <div class="detail-section">
                     <h3><i class="fas fa-map-marker-alt"></i> Location</h3>
                     <p><strong>Address:</strong> ${event.address || 'Not specified'}</p>
                     <p><strong>City:</strong> ${event.city || 'Not specified'}</p>
                 </div>
-
                 <div class="detail-section">
                     <h3><i class="fas fa-user"></i> Client Information</h3>
-                    <p><strong>Name:</strong> ${event.client_name}</p>
+                    <p><strong>Name:</strong> ${event.client_name || 'N/A'}</p>
                     <p><strong>Contact:</strong> ${event.client_contact || 'Not provided'}</p>
-                    <p><strong>Email:</strong> ${event.client_email}</p>
+                    <p><strong>Email:</strong> ${event.client_email || 'N/A'}</p>
                 </div>
-
                 <div class="detail-section">
                     <h3><i class="fas fa-info-circle"></i> Event Details</h3>
-                    <p><strong>Budget:</strong> ₱${Number(event.budget).toLocaleString()}</p>
-                    <p><strong>Payment Status:</strong> <span class="status-badge ${event.payment_status.toLowerCase()}">${event.payment_status}</span></p>
-                    <p><strong>Performance Time:</strong> ${event.performance_time ? new Date('1970-01-01T' + event.performance_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
+                    <p><strong>Budget:</strong> ₱${event.budget ? Number(event.budget).toLocaleString() : 'N/A'}</p>
+                    <p><strong>Payment Status:</strong> <span class="status-badge ${event.payment_status ? event.payment_status.toLowerCase() : ''}">${event.payment_status || 'N/A'}</span></p>
+                    <p><strong>Time:</strong> ${(event.start_time && event.end_time) ?
+                        (new Date('1970-01-01T' + event.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) + ' - ' +
+                         new Date('1970-01-01T' + event.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })) : 'Not set'}</p>
                 </div>
-
                 <div class="detail-section">
                     <h3><i class="fas fa-tools"></i> Venue Equipment</h3>
                     <p>${event.venue_equipment || 'None specified'}</p>
                 </div>
-
                 <div class="detail-section">
                     <h3><i class="fas fa-file-alt"></i> Supporting Documents</h3>
                     <div class="document-list">
@@ -1035,6 +1162,10 @@ function getBuskerStatus($status) {
                 closeViewModal();
             }
         }
+
+        // Output upcoming_events to the browser console for debugging
+        const upcomingEvents = <?php echo json_encode($upcoming_events ?? []); ?>;
+        console.log('upcoming_events:', upcomingEvents);
     </script>
 </body>
 </html> 

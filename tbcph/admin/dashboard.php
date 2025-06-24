@@ -53,6 +53,34 @@ try {
     error_log("Dashboard error: " . $e->getMessage());
     $error = "An error occurred while loading the dashboard.";
 }
+
+// Add a function to map inquiry_status to admin status
+function getAdminStatus($status) {
+    switch (strtolower($status)) {
+        case 'deleted':
+        case 'deleted by client':
+            return 'Deleted';
+        case 'pending':
+            return 'Pending';
+        case 'approved':
+        case 'approve by admin':
+            return 'Approved';
+        case 'rejected':
+            return 'Rejected';
+        case 'rejected by admin':
+            return 'Rejected by Admin';
+        case 'rejected by busker':
+            return 'Rejected';
+        case 'confirmed':
+            return 'Confirmed';
+        case 'canceled':
+            return 'Canceled';
+        case 'completed':
+            return 'Completed';
+        default:
+            return ucfirst($status);
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -301,6 +329,15 @@ try {
         .view-link:hover {
             text-decoration: underline;
         }
+
+        .status-badge.status-deleted { background: #e0e0e0; color: #888; }
+        .status-badge.status-pending { background: #fff3cd; color: #856404; }
+        .status-badge.status-approved { background: #d4edda; color: #155724; font-weight: 600; }
+        .status-badge.status-rejected { background: #f8d7da; color: #721c24; }
+        .status-badge.status-rejected-by-admin { background: #f5c6cb; color: #721c24; }
+        .status-badge.status-confirmed { background: #d4edda; color: #155724; }
+        .status-badge.status-canceled { background: #f5c6cb; color: #721c24; }
+        .status-badge.status-completed { background: #cce5ff; color: #004085; }
     </style>
 </head>
 <body>
@@ -425,8 +462,8 @@ try {
                                 <td><?php echo htmlspecialchars($inquiry['event_date']); ?></td>
                                 <td>₱<?php echo number_format($inquiry['budget'], 2); ?></td>
                                 <td>
-                                    <span class="status-badge status-<?php echo strtolower($inquiry['inquiry_status']); ?>">
-                                        <?php echo htmlspecialchars($inquiry['inquiry_status']); ?>
+                                    <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', getAdminStatus($inquiry['inquiry_status']))); ?>">
+                                        <?php echo getAdminStatus($inquiry['inquiry_status']); ?>
                                     </span>
                                 </td>
                                 <td>
