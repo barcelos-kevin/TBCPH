@@ -151,7 +151,8 @@ try {
             e.venue_equipment,
             l.address,
             l.city,
-            ts.time as time_slot,
+            ts.start_time,
+            ts.end_time,
             e.description,
             GROUP_CONCAT(g.name) as genres,
             GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
@@ -640,7 +641,7 @@ if (isset($_SESSION['error'])) {
                                     <td><?php echo htmlspecialchars($inquiry['event_name']); ?></td>
                                     <td><?php echo htmlspecialchars($inquiry['event_type']); ?></td>
                                     <td><?php echo date('F j, Y', strtotime($inquiry['event_date'])); ?></td>
-                                    <td><?php echo $inquiry['time_slot'] ? date('g:i A', strtotime($inquiry['time_slot'])) : 'Not set'; ?></td>
+                                    <td><?php echo ($inquiry['start_time'] && $inquiry['end_time']) ? date('g:i A', strtotime($inquiry['start_time'])) . ' - ' . date('g:i A', strtotime($inquiry['end_time'])) : 'Not set'; ?></td>
                                     <td>₱<?php echo number_format($inquiry['budget']); ?></td>
                                     <td>
                                         <?php if ($inquiry['hired_busker_id']): ?>
@@ -704,16 +705,13 @@ if (isset($_SESSION['error'])) {
                 </div>
 
                 <div class="form-group">
-                    <label for="edit_time_slot">Time Slot</label>
-                    <select id="edit_time_slot" name="time_slot_id">
-                        <option value="">Select Time Slot</option>
-                        <?php
-                        $stmt = $conn->query("SELECT time_slot_id, time FROM time_slot ORDER BY time");
-                        while ($slot = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                            echo "<option value='{$slot['time_slot_id']}'>{$slot['time']}</option>";
-                        }
-                        ?>
-                    </select>
+                    <label for="edit_start_time">Start Time</label>
+                    <input type="time" id="edit_start_time" name="edit_start_time" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit_end_time">End Time</label>
+                    <input type="time" id="edit_end_time" name="edit_end_time" required>
                 </div>
 
                 <div class="form-group">
@@ -791,7 +789,9 @@ if (isset($_SESSION['error'])) {
                     <p><strong>Event Name:</strong> ${inquiry.event_name}</p>
                     <p><strong>Event Type:</strong> ${inquiry.event_type}</p>
                     <p><strong>Event Date:</strong> ${new Date(inquiry.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    <p><strong>Time Slot:</strong> ${inquiry.time_slot ? new Date('1970-01-01T' + inquiry.time_slot).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
+                    <p><strong>Time Slot:</strong> ${(inquiry.start_time && inquiry.end_time) ?
+                        (new Date('1970-01-01T' + inquiry.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) + ' - ' +
+                         new Date('1970-01-01T' + inquiry.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })) : 'Not set'}</p>
                 </div>
 
                 <div class="detail-section">
@@ -887,7 +887,8 @@ if (isset($_SESSION['error'])) {
             document.getElementById('edit_event_name').value = inquiry.event_name;
             document.getElementById('edit_event_type').value = inquiry.event_type;
             document.getElementById('edit_event_date').value = inquiry.event_date;
-            document.getElementById('edit_time_slot').value = inquiry.time_slot_id || '';
+            document.getElementById('edit_start_time').value = inquiry.start_time || '';
+            document.getElementById('edit_end_time').value = inquiry.end_time || '';
             document.getElementById('edit_budget').value = inquiry.budget;
             document.getElementById('edit_venue_equipment').value = inquiry.venue_equipment || '';
             document.getElementById('edit_description').value = inquiry.description || '';

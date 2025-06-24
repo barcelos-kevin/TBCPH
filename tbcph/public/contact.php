@@ -42,7 +42,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $location_id = (int)$_POST['location'];
             }
 
-            // 2. Insert Event Details
+            // 2. Insert Time Slot (new logic)
+            $stmt = $conn->prepare("INSERT INTO time_slot (start_time, end_time) VALUES (?, ?)");
+            $stmt->execute([
+                $_POST['start_time'],
+                $_POST['end_time']
+            ]);
+            $time_slot_id = $conn->lastInsertId();
+
+            // 3. Insert Event Details
             $stmt = $conn->prepare("
                 INSERT INTO event_table (
                     event_name, event_type, event_date, time_slot_id, 
@@ -53,14 +61,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_POST['event_name'],
                 $_POST['event_type'],
                 $_POST['event_date'],
-                $_POST['time_slot'],
+                $time_slot_id,
                 $location_id,
                 $_POST['venue_equipment'],
                 $_POST['description']
             ]);
             $event_id = $conn->lastInsertId();
 
-            // 3. Insert Inquiry
+            // 4. Insert Inquiry
             $stmt = $conn->prepare("
                 INSERT INTO inquiry (
                     client_id, event_id, budget, inquiry_status
@@ -73,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $inquiry_id = $conn->lastInsertId();
 
-            // 4. Handle Supporting Documents
+            // 5. Handle Supporting Documents
             if (!empty($_FILES['supporting_docs']['name'][0])) {
                 $upload_dir = __DIR__ . '/../uploads/';
                 if (!file_exists($upload_dir)) {
@@ -97,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // 5. Insert Genres
+            // 6. Insert Genres
             if (!empty($_POST['genres'])) {
                 $stmt = $conn->prepare("
                     INSERT INTO inquiry_genre (inquiry_id, genre_id)
@@ -482,13 +490,12 @@ try {
                     </div>
 
                     <div class="form-group">
-                        <label for="time_slot">Time Slot</label>
-                        <select id="time_slot" name="time_slot" required>
-                            <option value="">Select a time slot</option>
-                            <?php foreach ($time_slots as $slot): ?>
-                                <option value="<?php echo htmlspecialchars($slot['time_slot_id']); ?>"><?php echo htmlspecialchars(date('g:i A', strtotime($slot['time']))); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <label for="start_time">Start Time</label>
+                        <input type="time" id="start_time" name="start_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="end_time">End Time</label>
+                        <input type="time" id="end_time" name="end_time" required>
                     </div>
 
                     <div class="form-group">

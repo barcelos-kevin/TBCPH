@@ -19,7 +19,8 @@ CREATE TABLE location (
 -- Create Time Slot table
 CREATE TABLE time_slot (
     time_slot_id INT PRIMARY KEY AUTO_INCREMENT,
-    time TIME NOT NULL
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL
 );
 
 -- Create Client table
@@ -159,10 +160,22 @@ INSERT INTO admin (email, password) VALUES
 ('supervisor@eventmanagement.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
 
 -- Insert Time Slots data
-INSERT INTO time_slot (time) VALUES 
-('08:00:00'), ('09:00:00'), ('10:00:00'), ('11:00:00'), ('12:00:00'),
-('13:00:00'), ('14:00:00'), ('15:00:00'), ('16:00:00'), ('17:00:00'),
-('18:00:00'), ('19:00:00'), ('20:00:00'), ('21:00:00'), ('22:00:00');
+INSERT INTO time_slot (start_time, end_time) VALUES 
+('08:00:00', '09:00:00'),
+('09:00:00', '10:00:00'),
+('10:00:00', '11:00:00'),
+('11:00:00', '12:00:00'),
+('12:00:00', '13:00:00'),
+('13:00:00', '14:00:00'),
+('14:00:00', '15:00:00'),
+('15:00:00', '16:00:00'),
+('16:00:00', '17:00:00'),
+('17:00:00', '18:00:00'),
+('18:00:00', '19:00:00'),
+('19:00:00', '20:00:00'),
+('20:00:00', '21:00:00'),
+('21:00:00', '22:00:00'),
+('22:00:00', '23:00:00');
 
 -- Insert Location data
 INSERT INTO location (address, city, is_custom) VALUES 
