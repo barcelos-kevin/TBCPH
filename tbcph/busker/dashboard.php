@@ -195,12 +195,11 @@ try {
 
 // Get busker's booking requests (inquiry_status = 'approved' by admin)
 try {
-    $stmt = $conn->prepare("
-        SELECT h.order_id, h.inquiry_id, h.payment_status, h.performance_time,
-               i.budget, i.inquiry_status,
-               e.event_name, e.event_type, e.event_date, e.venue_equipment, e.description,
-               c.name as client_name, c.phone as client_contact, c.email as client_email,
-               ts.start_time, ts.end_time
+    $stmt = $conn->prepare("SELECT h.order_id, h.inquiry_id, h.payment_status, h.performance_time,
+                           i.budget, i.inquiry_status,
+                           e.event_name, e.event_type, e.event_date, e.venue_equipment, e.description,
+                           c.name as client_name, c.phone as client_contact, c.email as client_email,
+                           ts.start_time, ts.end_time
         FROM hire h
         JOIN inquiry i ON h.inquiry_id = i.inquiry_id
         JOIN event_table e ON i.event_id = e.event_id
@@ -232,7 +231,8 @@ try {
             e.description,
             l.address,
             l.city,
-            ts.time as time_slot,
+            ts.start_time,
+            ts.end_time,
             c.name as client_name,
             c.phone as client_contact,
             c.email as client_email,
@@ -274,7 +274,8 @@ try {
             e.description,
             l.address,
             l.city,
-            ts.time as time_slot,
+            ts.start_time,
+            ts.end_time,
             c.name as client_name,
             c.phone as client_contact,
             c.email as client_email,
@@ -316,7 +317,8 @@ try {
             e.description,
             l.address,
             l.city,
-            ts.time as time_slot,
+            ts.start_time,
+            ts.end_time,
             c.name as client_name,
             c.phone as client_contact,
             c.email as client_email,
@@ -367,13 +369,6 @@ function getBuskerStatus($status) {
         default:
             return ucfirst($status);
     }
-}
-
-// After fetching $upcoming_events, print its contents
-if (isset($upcoming_events)) {
-    echo "<pre style='background:#fff;color:#000;z-index:9999;position:relative;'>";
-    print_r($upcoming_events);
-    echo "</pre>";
 }
 ?>
 <!DOCTYPE html>
@@ -1076,6 +1071,7 @@ if (isset($upcoming_events)) {
         </div>
     </div>
 
+    <?php include '../includes/footer.php'; ?>
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
@@ -1162,10 +1158,6 @@ if (isset($upcoming_events)) {
                 closeViewModal();
             }
         }
-
-        // Output upcoming_events to the browser console for debugging
-        const upcomingEvents = <?php echo json_encode($upcoming_events ?? []); ?>;
-        console.log('upcoming_events:', upcomingEvents);
     </script>
 </body>
 </html> 
