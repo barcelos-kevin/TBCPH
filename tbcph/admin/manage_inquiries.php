@@ -54,7 +54,7 @@ try {
                e.event_type,
                e.venue_equipment,
                e.description as event_description,
-               DATE_FORMAT(i.inquiry_date_id, '%M %d, %Y') as formatted_date
+               DATE_FORMAT(i.inquiry_date, '%M %d, %Y %h:%i %p') as formatted_date
         FROM inquiry i
         JOIN client c ON i.client_id = c.client_id
         LEFT JOIN event_table e ON i.event_id = e.event_id
@@ -88,6 +88,8 @@ try {
     error_log("Inquiry fetch error: " . $e->getMessage());
     $error = "An error occurred while fetching inquiries.";
 }
+
+if (!isset($inquiries) || !is_array($inquiries)) $inquiries = [];
 ?>
 
 <!DOCTYPE html>
@@ -442,6 +444,7 @@ try {
                         <th>Client</th>
                         <th>Event</th>
                         <th>Date</th>
+                        <th>Inquiry Created</th>
                         <th>Budget</th>
                         <th>Status</th>
                         <th>Actions</th>
@@ -454,6 +457,7 @@ try {
                             <td><?php echo htmlspecialchars($inquiry['client_name']); ?></td>
                             <td><?php echo htmlspecialchars($inquiry['event_name']); ?></td>
                             <td><?php echo htmlspecialchars($inquiry['event_date']); ?></td>
+                            <td><?php echo !empty($inquiry['formatted_date']) ? htmlspecialchars($inquiry['formatted_date']) : 'Not set'; ?></td>
                             <td>₱<?php echo number_format($inquiry['budget'], 2); ?></td>
                             <td>
                                 <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $inquiry['inquiry_status'])); ?>">
@@ -484,7 +488,8 @@ try {
                                             <div class="info-value">
                                                 Event: <?php echo htmlspecialchars($inquiry['event_name']); ?><br>
                                                 Type: <?php echo htmlspecialchars($inquiry['event_type']); ?><br>
-                                                Date: <?php echo htmlspecialchars($inquiry['event_date']); ?>
+                                                Date: <?php echo htmlspecialchars($inquiry['event_date']); ?><br>
+                                                Inquiry Created: <?php echo !empty($inquiry['formatted_date']) ? htmlspecialchars($inquiry['formatted_date']) : 'Not set'; ?>
                                             </div>
                                         </div>
                                         <?php if ($inquiry['event_description']): ?>

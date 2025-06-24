@@ -1,0 +1,7 @@
+-- Remove the old inquiry_date_id column if it exists
+ALTER TABLE inquiry
+  DROP COLUMN inquiry_date_id;
+
+-- Add the new inquiry_date column to store date and time
+ALTER TABLE inquiry
+  ADD COLUMN inquiry_date DATETIME AFTER event_id;
