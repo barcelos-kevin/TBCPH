@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirm_password = $_POST['confirm_password'];
 
     // Validate form data
-    if (empty($formData['name']) || empty($formData['email']) || empty($password) || empty($confirm_password)) {
+    if (empty($formData['name']) || empty($formData['email']) || empty($password) || empty($confirm_password) || empty($formData['birthday'])) {
         $error = 'Please fill in all required fields';
     } elseif (!$formData['email']) {
         $error = 'Please enter a valid email address';
@@ -309,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div class="form-group">
                             <label for="birthday">Birthday</label>
-                            <input type="date" id="birthday" name="birthday" value="<?php echo htmlspecialchars($formData['birthday']); ?>">
+                            <input type="date" id="birthday" name="birthday" value="<?php echo htmlspecialchars($formData['birthday']); ?>" required>
                         </div>
                 </div>
 

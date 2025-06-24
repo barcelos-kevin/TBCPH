@@ -10,7 +10,9 @@ define('SITE_NAME', 'The Busking Community PH');
 define('SITE_URL', 'http://localhost/tbcph');
 
 // Session configuration
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Error reporting
 error_reporting(E_ALL);

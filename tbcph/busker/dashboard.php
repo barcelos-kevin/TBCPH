@@ -365,6 +365,35 @@ try {
 } catch (PDOException $e) {
     $error = 'Error fetching events for document management: ' . $e->getMessage();
 }
+
+// Add a function to map inquiry_status to busker status
+function getBuskerStatus($status) {
+    switch (strtolower($status)) {
+        case 'deleted':
+        case 'deleted by client':
+            return 'Not Visible';
+        case 'pending':
+            return 'Not Visible';
+        case 'approved':
+            return 'Pending';
+        case 'approve by admin':
+            return 'Pending';
+        case 'rejected':
+        case 'rejected by busker':
+            return 'Rejected by Busker';
+        case 'rejected by admin':
+            return 'Not Visible';
+        case 'confirmed':
+            return 'Confirmed';
+        case 'canceled':
+        case 'cancelled':
+            return 'Not Visible';
+        case 'completed':
+            return 'Completed';
+        default:
+            return ucfirst($status);
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -500,10 +529,13 @@ try {
             font-weight: 500;
         }
 
-        .status-badge.pending { background: #f1c40f; color: #fff; }
-        .status-badge.approved { background: #28a745; color: #fff; } /* Added for accepted requests */
-        .status-badge.rejected { background: #dc3545; color: #fff; } /* Added for rejected requests */
-        .status-badge.completed { background: #6c757d; color: #fff; } /* Added for completed events */
+        .status-badge.not-visible { background: #e0e0e0; color: #888; }
+        .status-badge.pending { background: #fff3cd; color: #856404; }
+        .status-badge.approve-by-admin { background: #b3e5fc; color: #0277bd; }
+        .status-badge.rejected-by-busker { background: #f8d7da; color: #721c24; }
+        .status-badge.confirmed { background: #d4edda; color: #155724; }
+        .status-badge.canceled { background: #f5c6cb; color: #721c24; }
+        .status-badge.completed { background: #cce5ff; color: #004085; }
         .status-badge.busker.selected { background: #007bff; color: #fff; } /* Specific for busker selected status */
 
         .action-buttons {
@@ -590,13 +622,13 @@ try {
                                         <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
                                         <td><?php echo htmlspecialchars($event['client_name']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower($event['payment_status']); ?>">
-                                                <?php echo ucfirst($event['payment_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($event['payment_status']))); ?>">
+                                                <?php echo getBuskerStatus($event['payment_status']); ?>
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '.', $event['inquiry_status'])); ?>">
-                                                <?php echo ucfirst($event['inquiry_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($event['inquiry_status']))); ?>">
+                                                <?php echo getBuskerStatus($event['inquiry_status']); ?>
                                             </span>
                                         </td>
                                     </tr>
@@ -641,8 +673,8 @@ try {
                                         <td><?php echo htmlspecialchars($request['client_name']); ?></td>
                                         <td>₱<?php echo number_format($request['budget']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '.', $request['inquiry_status'])); ?>">
-                                                <?php echo ucfirst($request['inquiry_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($request['inquiry_status']))); ?>">
+                                                <?php echo getBuskerStatus($request['inquiry_status']); ?>
                                             </span>
                                         </td>
                                         <td>
@@ -696,13 +728,13 @@ try {
                                         <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
                                         <td><?php echo htmlspecialchars($event['client_name']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower($event['payment_status']); ?>">
-                                                <?php echo ucfirst($event['payment_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($event['payment_status']))); ?>">
+                                                <?php echo getBuskerStatus($event['payment_status']); ?>
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '.', $event['inquiry_status'])); ?>">
-                                                <?php echo ucfirst($event['inquiry_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($event['inquiry_status']))); ?>">
+                                                <?php echo getBuskerStatus($event['inquiry_status']); ?>
                                             </span>
                                         </td>
                                     </tr>
@@ -831,8 +863,8 @@ try {
                                         <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
                                         <td><?php echo htmlspecialchars($event['client_name']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower($event['payment_status']); ?>">
-                                                <?php echo ucfirst($event['payment_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($event['payment_status']))); ?>">
+                                                <?php echo getBuskerStatus($event['payment_status']); ?>
                                             </span>
                                         </td>
                                         <td>

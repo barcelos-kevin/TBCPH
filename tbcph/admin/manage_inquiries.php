@@ -38,6 +38,35 @@ if (isset($_SESSION['success_message'])) {
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 
+// Add a function to map inquiry_status to admin status
+function getAdminStatus($status) {
+    switch (strtolower($status)) {
+        case 'deleted':
+        case 'deleted by client':
+            return 'Deleted';
+        case 'pending':
+            return 'Pending';
+        case 'approved':
+        case 'approve by admin':
+            return 'Approved';
+        case 'rejected':
+            return 'Rejected';
+        case 'rejected by admin':
+            return 'Rejected by Admin';
+        case 'rejected by busker':
+            return 'Rejected';
+        case 'confirmed':
+            return 'Confirmed';
+        case 'canceled':
+        case 'cancelled':
+            return 'Canceled';
+        case 'completed':
+            return 'Completed';
+        default:
+            return ucfirst($status);
+    }
+}
+
 try {
     // Get count of pending inquiries
     $stmt = $conn->query("SELECT COUNT(*) FROM inquiry WHERE inquiry_status = 'pending'");
@@ -374,6 +403,15 @@ if (!isset($inquiries) || !is_array($inquiries)) $inquiries = [];
                 overflow-x: auto;
             }
         }
+
+        .status-badge.status-deleted { background: #e0e0e0; color: #888; }
+        .status-badge.status-pending { background: #fff3cd; color: #856404; }
+        .status-badge.status-approved { background: #d4edda; color: #155724; font-weight: 600; }
+        .status-badge.status-rejected { background: #f8d7da; color: #721c24; }
+        .status-badge.status-rejected-by-admin { background: #f5c6cb; color: #721c24; }
+        .status-badge.status-confirmed { background: #d4edda; color: #155724; }
+        .status-badge.status-canceled { background: #f5c6cb; color: #721c24; }
+        .status-badge.status-completed { background: #cce5ff; color: #004085; }
     </style>
 </head>
 <body>
@@ -460,8 +498,8 @@ if (!isset($inquiries) || !is_array($inquiries)) $inquiries = [];
                             <td><?php echo !empty($inquiry['formatted_date']) ? htmlspecialchars($inquiry['formatted_date']) : 'Not set'; ?></td>
                             <td>₱<?php echo number_format($inquiry['budget'], 2); ?></td>
                             <td>
-                                <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $inquiry['inquiry_status'])); ?>">
-                                    <?php echo ucwords($inquiry['inquiry_status']); ?>
+                                <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', getAdminStatus($inquiry['inquiry_status']))); ?>">
+                                    <?php echo getAdminStatus($inquiry['inquiry_status']); ?>
                                 </span>
                             </td>
                             <td>

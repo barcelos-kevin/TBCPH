@@ -197,6 +197,36 @@ if (isset($_SESSION['error'])) {
     $error = $_SESSION['error'];
     unset($_SESSION['error']);
 }
+
+// Add a function to map inquiry_status to client status
+function getClientStatus($status, $admin_status = null, $busker_status = null) {
+    // You can expand this logic as needed for more complex mappings
+    switch (strtolower($status)) {
+        case 'deleted':
+        case 'deleted by client':
+            return 'Deleted';
+        case 'pending':
+            return 'Pending';
+        case 'approved':
+        case 'approve by admin':
+            return 'Pending';
+        case 'rejected':
+            return 'Rejected';
+        case 'rejected by admin':
+            return 'Rejected';
+        case 'rejected by busker':
+            return 'Rejected';
+        case 'confirmed':
+            return 'Confirmed';
+        case 'canceled':
+        case 'cancelled':
+            return 'Canceled';
+        case 'completed':
+            return 'Completed';
+        default:
+            return ucfirst($status);
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -301,10 +331,12 @@ if (isset($_SESSION['error'])) {
             font-weight: 500;
         }
 
-        .status-badge.pending { background: #f1c40f; color: #fff; }
-        .status-badge.approved { background: #2ecc71; color: #fff; }
-        .status-badge.rejected { background: #e74c3c; color: #fff; }
-        .status-badge.completed { background: #3498db; color: #fff; }
+        .status-badge.deleted { background: #e0e0e0; color: #888; }
+        .status-badge.pending { background: #fff3cd; color: #856404; }
+        .status-badge.rejected { background: #f8d7da; color: #721c24; }
+        .status-badge.confirmed { background: #d4edda; color: #155724; }
+        .status-badge.canceled { background: #f5c6cb; color: #721c24; }
+        .status-badge.completed { background: #cce5ff; color: #004085; }
 
         .action-buttons {
             display: flex;
@@ -652,13 +684,13 @@ if (isset($_SESSION['error'])) {
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                    <span class="status-badge <?php echo strtolower($inquiry['inquiry_status']); ?>">
-                                        <?php echo ucfirst($inquiry['inquiry_status']); ?>
-                                    </span>
+                                        <span class="status-badge <?php echo strtolower(getClientStatus($inquiry['inquiry_status'])); ?>">
+                                            <?php echo getClientStatus($inquiry['inquiry_status']); ?>
+                                        </span>
                                     </td>
                                     <td>
                                         <div class="action-buttons">
-                                            <button class="btn-view" onclick="viewInquiry(<?php echo htmlspecialchars(json_encode($inquiry)); ?>)">View</button>
+                                            <button class="btn-view" onclick='viewInquiry(<?php echo json_encode($inquiry, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)'>View</button>
                             </div>
                                     </td>
                                 </tr>
@@ -780,6 +812,33 @@ if (isset($_SESSION['error'])) {
     <?php include '../includes/footer.php'; ?>
 
     <script>
+        // JS version of getClientStatus for status mapping in the modal
+        function getClientStatus(status) {
+            switch ((status || '').toLowerCase()) {
+                case 'deleted':
+                case 'deleted by client':
+                    return 'Deleted';
+                case 'pending':
+                    return 'Pending';
+                case 'approved':
+                case 'approve by admin':
+                    return 'Pending';
+                case 'rejected':
+                case 'rejected by admin':
+                case 'rejected by busker':
+                    return 'Rejected';
+                case 'confirmed':
+                    return 'Confirmed';
+                case 'canceled':
+                case 'cancelled':
+                    return 'Canceled';
+                case 'completed':
+                    return 'Completed';
+                default:
+                    return status ? status.charAt(0).toUpperCase() + status.slice(1) : '';
+            }
+        }
+
         function viewInquiry(inquiry) {
             const modal = document.getElementById('viewModal');
             const content = document.getElementById('viewContent');
@@ -805,7 +864,7 @@ if (isset($_SESSION['error'])) {
                 <div class="detail-section">
                     <h3><i class="fas fa-info-circle"></i> Budget and Status</h3>
                     <p><strong>Budget:</strong> ₱${Number(inquiry.budget).toLocaleString()}</p>
-                    <p><strong>Status:</strong> <span class="status-badge ${inquiry.inquiry_status.toLowerCase()}">${inquiry.inquiry_status}</span></p>
+                    <p><strong>Status:</strong> <span class="status-badge ${getClientStatus(inquiry.inquiry_status).toLowerCase()}">${getClientStatus(inquiry.inquiry_status)}</span></p>
                 </div>
 
                 <div class="detail-section">
@@ -850,8 +909,8 @@ if (isset($_SESSION['error'])) {
                 </div>
             `;
 
-            // Show Edit/Delete if pending
-            if (inquiry.inquiry_status.toLowerCase() === 'pending') {
+            // Show Edit/Delete if pending or approved
+            if (inquiry.inquiry_status.toLowerCase() === 'pending' || inquiry.inquiry_status.toLowerCase() === 'approved') {
                 actionBtns.innerHTML = `
                     <button class="btn btn-edit" onclick='editInquiry(${JSON.stringify(inquiry)})'>
                         <i class="fas fa-edit"></i> Edit
