@@ -8,6 +8,7 @@ require_once '../includes/config.php';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>About Us - TBCPH</title>
+    <link rel="icon" href="/tbcph/assets/images/logo.jpg">
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
     <style>
         .about-hero {

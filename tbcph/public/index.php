@@ -30,7 +30,34 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TBCPH - The Busking Community PH</title>
+    <link rel="icon" href="/tbcph/assets/images/logo.jpg">
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
+    <style>
+        .hero {
+            background-image: url('/tbcph/assets/images/busking.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            color: white;
+        }
+    </style>
 </head>
 <body>
     <header>

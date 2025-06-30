@@ -95,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Busker Registration - TBCPH</title>
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
+    <link rel="icon" href="/tbcph/assets/images/logo.jpg">
     <style>
         .auth-container {
             min-height: calc(100vh - 200px);

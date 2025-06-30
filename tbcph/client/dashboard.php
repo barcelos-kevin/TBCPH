@@ -204,6 +204,7 @@ if (isset($_SESSION['error'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Client Dashboard - TBCPH</title>
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
+    <link rel="icon" href="/tbcph/assets/images/logo.jpg">
     <style>
         .dashboard-container {
             padding: 20px;

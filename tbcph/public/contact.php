@@ -170,6 +170,7 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $busker ? "Book " . htmlspecialchars($busker['band_name']) : "Book a Busker"; ?> - TBCPH</title>
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
+    <link rel="icon" href="/tbcph/assets/images/logo.jpg">
     <style>
         .location-options {
             margin-bottom: 20px;
