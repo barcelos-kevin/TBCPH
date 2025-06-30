@@ -52,7 +52,9 @@ CREATE TABLE busker (
     status VARCHAR(50),
     password VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    profile_image VARCHAR(255) DEFAULT NULL,
+    background_image VARCHAR(255) DEFAULT NULL
 );
 
 -- Create Event table
