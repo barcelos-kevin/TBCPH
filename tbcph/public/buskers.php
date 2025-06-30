@@ -103,12 +103,24 @@ $genres = $genres_stmt->fetchAll(PDO::FETCH_ASSOC);
 
         /* Hero Section */
         .hero {
-            background: linear-gradient(rgba(52, 152, 219, 0.9), rgba(46, 204, 113, 0.9)),
-                        url('../assets/images/hero-bg.jpg') center/cover;
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
+                        url('/tbcph/assets/images/backgrounds/OldMan_Busker.png') center center/cover no-repeat;
             color: white;
             text-align: center;
-            padding: 8rem 0 4rem;
-            margin-bottom: 2rem;
+            min-height: 60vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hero .container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 40px 20px;
         }
 
         .hero h1 {

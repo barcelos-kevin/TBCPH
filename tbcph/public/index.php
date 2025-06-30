@@ -32,6 +32,47 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TBCPH - The Busking Community PH</title>
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
+    <style>
+        .hero {
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
+                        url('/tbcph/assets/images/backgrounds/Busker_girl.jpg') center center/cover no-repeat;
+            color: white;
+            text-align: center;
+            min-height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .hero-content {
+            width: 100%;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .cta {
+            background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)),
+                        url('/tbcph/assets/images/backgrounds/Busker_boy.png') center center/cover no-repeat;
+            color: #fff;
+            text-align: center;
+            padding: 80px 20px;
+            border-radius: 0;
+            margin-top: 0;
+            position: relative;
+            min-height: 60vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .cta h2, .cta p, .cta a {
+            position: relative;
+            z-index: 2;
+        }
+    </style>
 </head>
 <body>
     <main>
