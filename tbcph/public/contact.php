@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+include __DIR__ . '/../includes/header.php';
 
 $busker_id = isset($_GET['busker_id']) ? (int)$_GET['busker_id'] : null;
 $error = '';
@@ -23,112 +24,126 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_SESSION['client_id'])) {
         $error = 'Please log in as a client to submit an inquiry.';
     } else {
-        try {
-            $conn->beginTransaction();
+        // Server-side validation for event_date (no past dates)
+        $today = (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');
+        if (isset($_POST['event_date']) && $_POST['event_date'] < $today) {
+            $error = 'Event date cannot be in the past.';
+        } else {
+            try {
+                $conn->beginTransaction();
 
-            // 1. Handle Location (insert custom or use existing)
-            $location_id = null;
-            if ($_POST['location_type'] === 'custom') {
-                $stmt = $conn->prepare("
-                    INSERT INTO location (address, city)
-                    VALUES (?, ?)
-                ");
-                $stmt->execute([
-                    $_POST['custom_address'],
-                    $_POST['custom_city']
-                ]);
-                $location_id = $conn->lastInsertId();
-            } else {
-                $location_id = (int)$_POST['location'];
-            }
-
-            // 2. Insert Event Details
-            $stmt = $conn->prepare("
-                INSERT INTO event_table (
-                    event_name, event_type, event_date, time_slot_id, 
-                    location_id, venue_equipment, description
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([
-                $_POST['event_name'],
-                $_POST['event_type'],
-                $_POST['event_date'],
-                $_POST['time_slot'],
-                $location_id,
-                $_POST['venue_equipment'],
-                $_POST['description']
-            ]);
-            $event_id = $conn->lastInsertId();
-
-            // 3. Insert Inquiry
-            $stmt = $conn->prepare("
-                INSERT INTO inquiry (
-                    client_id, event_id, budget, inquiry_status
-                ) VALUES (?, ?, ?, 'pending')
-            ");
-            $stmt->execute([
-                $_SESSION['client_id'],
-                $event_id,
-                $_POST['budget']
-            ]);
-            $inquiry_id = $conn->lastInsertId();
-
-            // 4. Handle Supporting Documents
-            if (!empty($_FILES['supporting_docs']['name'][0])) {
-                $upload_dir = __DIR__ . '/../uploads/';
-                if (!file_exists($upload_dir)) {
-                    mkdir($upload_dir, 0777, true);
+                // 1. Handle Location (insert custom or use existing)
+                $location_id = null;
+                if ($_POST['location_type'] === 'custom') {
+                    $stmt = $conn->prepare("
+                        INSERT INTO location (address, city)
+                        VALUES (?, ?)
+                    ");
+                    $stmt->execute([
+                        $_POST['custom_address'],
+                        $_POST['custom_city']
+                    ]);
+                    $location_id = $conn->lastInsertId();
+                } else {
+                    $location_id = (int)$_POST['location'];
                 }
 
-                foreach ($_FILES['supporting_docs']['tmp_name'] as $key => $tmp_name) {
-                    if ($_FILES['supporting_docs']['error'][$key] === UPLOAD_ERR_OK) {
-                        $file_name = time() . '_' . $_FILES['supporting_docs']['name'][$key];
-                        $file_path = $upload_dir . $file_name;
-                        
-                        if (move_uploaded_file($tmp_name, $file_path)) {
-                            $stmt = $conn->prepare("INSERT INTO supporting_document (doc_link) VALUES (?)");
-                            $stmt->execute(['uploads/' . $file_name]);
-                            $doc_id = $conn->lastInsertId();
+                // 2. Insert Time Slot (new logic)
+                $stmt = $conn->prepare("INSERT INTO time_slot (start_time, end_time) VALUES (?, ?)");
+                $stmt->execute([
+                    $_POST['start_time'],
+                    $_POST['end_time']
+                ]);
+                $time_slot_id = $conn->lastInsertId();
 
-                            $stmt = $conn->prepare("INSERT INTO inquiry_document (inquiry_id, docs_id) VALUES (?, ?)");
-                            $stmt->execute([$inquiry_id, $doc_id]);
+                // 3. Insert Event Details
+                $stmt = $conn->prepare("
+                    INSERT INTO event_table (
+                        event_name, event_type, event_date, time_slot_id, 
+                        location_id, venue_equipment, description
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([
+                    $_POST['event_name'],
+                    $_POST['event_type'],
+                    $_POST['event_date'],
+                    $time_slot_id,
+                    $location_id,
+                    $_POST['venue_equipment'],
+                    $_POST['description']
+                ]);
+                $event_id = $conn->lastInsertId();
+
+                // 4. Insert Inquiry
+                $stmt = $conn->prepare("
+                    INSERT INTO inquiry (
+                        client_id, event_id, inquiry_date, budget, inquiry_status
+                    ) VALUES (?, ?, ?, ?, 'pending')
+                ");
+                $stmt->execute([
+                    $_SESSION['client_id'],
+                    $event_id,
+                    (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d H:i:s'),
+                    $_POST['budget']
+                ]);
+                $inquiry_id = $conn->lastInsertId();
+
+                // 5. Handle Supporting Documents
+                if (!empty($_FILES['supporting_docs']['name'][0])) {
+                    $upload_dir = __DIR__ . '/../uploads/';
+                    if (!file_exists($upload_dir)) {
+                        mkdir($upload_dir, 0777, true);
+                    }
+
+                    foreach ($_FILES['supporting_docs']['tmp_name'] as $key => $tmp_name) {
+                        if ($_FILES['supporting_docs']['error'][$key] === UPLOAD_ERR_OK) {
+                            $file_name = time() . '_' . $_FILES['supporting_docs']['name'][$key];
+                            $file_path = $upload_dir . $file_name;
+                            
+                            if (move_uploaded_file($tmp_name, $file_path)) {
+                                $stmt = $conn->prepare("INSERT INTO supporting_document (doc_link) VALUES (?)");
+                                $stmt->execute(['uploads/' . $file_name]);
+                                $doc_id = $conn->lastInsertId();
+
+                                $stmt = $conn->prepare("INSERT INTO inquiry_document (inquiry_id, docs_id) VALUES (?, ?)");
+                                $stmt->execute([$inquiry_id, $doc_id]);
+                            }
                         }
                     }
                 }
-            }
 
-            // 5. Insert Genres
-            if (!empty($_POST['genres'])) {
-                $stmt = $conn->prepare("
-                    INSERT INTO inquiry_genre (inquiry_id, genre_id)
-                    VALUES (?, ?)
-                ");
-                foreach ($_POST['genres'] as $genre_id) {
-                    $stmt->execute([$inquiry_id, $genre_id]);
+                // 6. Insert Genres
+                if (!empty($_POST['genres'])) {
+                    $stmt = $conn->prepare("
+                        INSERT INTO inquiry_genre (inquiry_id, genre_id)
+                        VALUES (?, ?)
+                    ");
+                    foreach ($_POST['genres'] as $genre_id) {
+                        $stmt->execute([$inquiry_id, $genre_id]);
+                    }
                 }
+
+                $conn->commit();
+
+                // If a busker was pre-selected, create the hire record
+                if ($busker_id) {
+                    $stmt = $conn->prepare("INSERT INTO hire (inquiry_id, busker_id, payment_status) VALUES (?, ?, 'pending')");
+                    $stmt->execute([$inquiry_id, $busker_id]);
+                    
+                    // Update inquiry status
+                    $stmt = $conn->prepare("UPDATE inquiry SET inquiry_status = 'busker selected' WHERE inquiry_id = ?");
+                    $stmt->execute([$inquiry_id]);
+                    
+                    redirectWithMessage('/client/dashboard.php', 'Inquiry submitted successfully with busker selected!', 'success');
+                } else {
+                    // Redirect to busker selection page
+                    redirect('/public/select_busker.php?inquiry_id=' . $inquiry_id);
+                }
+
+            } catch(Exception $e) {
+                $conn->rollBack();
+                $error = 'Error: ' . $e->getMessage();
             }
-
-            $conn->commit();
-
-            // If a busker was pre-selected, create the hire record
-            if ($busker_id) {
-                $stmt = $conn->prepare("INSERT INTO hire (inquiry_id, busker_id, payment_status) VALUES (?, ?, 'pending')");
-                $stmt->execute([$inquiry_id, $busker_id]);
-                
-                // Update inquiry status
-                $stmt = $conn->prepare("UPDATE inquiry SET inquiry_status = 'busker selected' WHERE inquiry_id = ?");
-                $stmt->execute([$inquiry_id]);
-                
-                redirectWithMessage('/client/dashboard.php', 'Inquiry submitted successfully with busker selected!', 'success');
-            } else {
-                // Redirect to busker selection page
-                redirect('/public/select_busker.php?inquiry_id=' . $inquiry_id);
-            }
-
-        } catch(Exception $e) {
-            $conn->rollBack();
-            error_log("Error submitting inquiry: " . $e->getMessage());
-            $error = 'An error occurred while submitting your inquiry. Please try again.';
         }
     }
 }
@@ -421,33 +436,6 @@ try {
     </style>
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="logo">
-                <a href="/tbcph/public/index.php">TBCPH</a>
-            </div>
-            <ul class="nav-links">
-                <li><a href="/tbcph/public/index.php">Home</a></li>
-                <li><a href="/tbcph/public/about.php">About</a></li>
-                <li><a href="/tbcph/public/buskers.php">Buskers</a></li>
-                <li><a href="/tbcph/public/contact.php">Contact</a></li>
-                <?php if(isset($_SESSION['user_type'])): ?>
-                    <?php if($_SESSION['user_type'] == 'admin'): ?>
-                        <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
-                    <?php elseif($_SESSION['user_type'] == 'busker'): ?>
-                        <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
-                    <?php elseif($_SESSION['user_type'] == 'client'): ?>
-                        <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
-                    <?php endif; ?>
-                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
-                <?php else: ?>
-                    <li><a href="/tbcph/client/register.php">Register</a></li>
-                    <li><a href="/tbcph/client/index.php">Login</a></li>
-                <?php endif; ?>
-            </ul>
-        </nav>
-    </header>
-
     <main>
         <div class="contact-container">
             <h1><?php echo $busker ? "Book " . htmlspecialchars($busker['band_name']) : "Book a Busker"; ?></h1>
@@ -479,17 +467,16 @@ try {
 
                     <div class="form-group">
                         <label for="event_date">Event Date</label>
-                        <input type="date" id="event_date" name="event_date" required>
+                        <input type="date" id="event_date" name="event_date" required min="<?php echo date('Y-m-d'); ?>">
                     </div>
 
                     <div class="form-group">
-                        <label for="time_slot">Time Slot</label>
-                        <select id="time_slot" name="time_slot" required>
-                            <option value="">Select a time slot</option>
-                            <?php foreach ($time_slots as $slot): ?>
-                                <option value="<?php echo htmlspecialchars($slot['time_slot_id']); ?>"><?php echo htmlspecialchars(date('g:i A', strtotime($slot['time']))); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <label for="start_time">Start Time</label>
+                        <input type="time" id="start_time" name="start_time" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="end_time">End Time</label>
+                        <input type="time" id="end_time" name="end_time" required>
                     </div>
 
                     <div class="form-group">

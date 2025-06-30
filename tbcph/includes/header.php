@@ -20,12 +20,16 @@
                 <?php if(isset($_SESSION['user_type'])): ?>
                     <?php if($_SESSION['user_type'] == 'admin'): ?>
                         <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
+                        <li><a href="/tbcph/includes/logout.php">Logout</a></li>
                     <?php elseif($_SESSION['user_type'] == 'busker'): ?>
+                        <li><a href="/tbcph/busker/dashboard.php">My Dashboard</a></li>
                         <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
+                        <li><a href="/tbcph/includes/logout.php">Logout</a></li>
                     <?php elseif($_SESSION['user_type'] == 'client'): ?>
                         <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
+                        <li><a href="/tbcph/client/profile.php">My Profile</a></li>
+                        <li><a href="/tbcph/includes/logout.php">Logout</a></li>
                     <?php endif; ?>
-                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
                 <?php else: ?>
                     <li><a href="/tbcph/client/index.php">Client Login</a></li>
                     <li><a href="/tbcph/busker/index.php">Busker Login</a></li>

@@ -6,6 +6,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+include __DIR__ . '/../includes/header.php';
+
 // Fetch all active buskers with their genres and equipment
 $query = "SELECT b.*, 
           GROUP_CONCAT(DISTINCT g.name) as genres,
@@ -102,12 +104,24 @@ $genres = $genres_stmt->fetchAll(PDO::FETCH_ASSOC);
 
         /* Hero Section */
         .hero {
-            background: linear-gradient(rgba(52, 152, 219, 0.9), rgba(46, 204, 113, 0.9)),
-                        url('../assets/images/hero-bg.jpg') center/cover;
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
+                        url('/tbcph/assets/images/backgrounds/OldMan_Busker.png') center center/cover no-repeat;
             color: white;
             text-align: center;
-            padding: 8rem 0 4rem;
-            margin-bottom: 2rem;
+            min-height: 60vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hero .container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 40px 20px;
         }
 
         .hero h1 {
@@ -343,27 +357,6 @@ $genres = $genres_stmt->fetchAll(PDO::FETCH_ASSOC);
     </style>
 </head>
 <body>
-    <header>
-        <div class="container">
-            <nav class="nav-container">
-                <a href="index.php" class="logo">TBCPH</a>
-                <div class="nav-links">
-                    <a href="index.php">Home</a>
-                    <a href="about.php">About</a>
-                    <a href="buskers.php">Buskers</a>
-                    <a href="contact.php">Contact</a>
-                    <?php if (isset($_SESSION['client_id'])): ?>
-                        <a href="../client/dashboard.php">Dashboard</a>
-                        <a href="/tbcph/includes/logout.php?type=client">Logout</a>
-                    <?php else: ?>
-                        <a href="../client/index.php">Login</a>
-                        <a href="../client/register.php">Register</a>
-                    <?php endif; ?>
-                </div>
-            </nav>
-        </div>
-    </header>
-
     <section class="hero">
         <div class="container">
             <h1>Discover Our Talented Buskers</h1>

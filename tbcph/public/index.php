@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+include __DIR__ . '/../includes/header.php';
 
 // Fetch featured buskers
 try {
@@ -34,59 +35,47 @@ try {
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
     <style>
         .hero {
-            background-image: url('/tbcph/assets/images/busking.jpg');
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
+                        url('/tbcph/assets/images/backgrounds/Busker_girl.jpg') center center/cover no-repeat;
+            color: white;
+            text-align: center;
+            min-height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
             position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 1;
-        }
-
         .hero-content {
+            width: 100%;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .cta {
+            background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)),
+                        url('/tbcph/assets/images/backgrounds/Busker_boy.png') center center/cover no-repeat;
+            color: #fff;
+            text-align: center;
+            padding: 80px 20px;
+            border-radius: 0;
+            margin-top: 0;
+            position: relative;
+            min-height: 60vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .cta h2, .cta p, .cta a {
             position: relative;
             z-index: 2;
-            color: white;
         }
     </style>
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="logo">
-                <a href="/tbcph/public/index.php">TBCPH</a>
-            </div>
-            <ul class="nav-links">
-                <li><a href="/tbcph/public/index.php">Home</a></li>
-                <li><a href="/tbcph/public/about.php">About</a></li>
-                <li><a href="/tbcph/public/buskers.php">Buskers</a></li>
-                <li><a href="/tbcph/public/contact.php">Contact</a></li>
-                <?php if(isset($_SESSION['user_type'])): ?>
-                    <?php if($_SESSION['user_type'] == 'admin'): ?>
-                        <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
-                    <?php elseif($_SESSION['user_type'] == 'busker'): ?>
-                        <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
-                    <?php elseif($_SESSION['user_type'] == 'client'): ?>
-                        <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
-                    <?php endif; ?>
-                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
-                <?php else: ?>
-                    <li><a href="/tbcph/client/index.php">Client Login</a></li>
-                    <li><a href="/tbcph/busker/index.php">Busker Login</a></li>
-                <?php endif; ?>
-            </ul>
-        </nav>
-    </header>
-
     <main>
         <div class="hero">
             <div class="hero-content">

@@ -1,4 +1,5 @@
 <?php
+session_start();
 require_once '../includes/config.php';
 
 // Check if user is already logged in
@@ -29,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['busker_id'] = $busker['busker_id'];
                     $_SESSION['busker_name'] = $busker['name'];
                     $_SESSION['busker_email'] = $busker['email'];
+                    $_SESSION['user_type'] = 'busker';
 
                     // Redirect to dashboard
                     header('Location: dashboard.php');

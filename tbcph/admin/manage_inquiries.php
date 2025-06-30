@@ -38,6 +38,35 @@ if (isset($_SESSION['success_message'])) {
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 
+// Add a function to map inquiry_status to admin status
+function getAdminStatus($status) {
+    switch (strtolower($status)) {
+        case 'deleted':
+        case 'deleted by client':
+            return 'Deleted';
+        case 'pending':
+            return 'Pending';
+        case 'approved':
+        case 'approve by admin':
+            return 'Approved';
+        case 'rejected':
+            return 'Rejected';
+        case 'rejected by admin':
+            return 'Rejected by Admin';
+        case 'rejected by busker':
+            return 'Rejected';
+        case 'confirmed':
+            return 'Confirmed';
+        case 'canceled':
+        case 'cancelled':
+            return 'Canceled';
+        case 'completed':
+            return 'Completed';
+        default:
+            return ucfirst($status);
+    }
+}
+
 try {
     // Get count of pending inquiries
     $stmt = $conn->query("SELECT COUNT(*) FROM inquiry WHERE inquiry_status = 'pending'");
@@ -54,7 +83,7 @@ try {
                e.event_type,
                e.venue_equipment,
                e.description as event_description,
-               DATE_FORMAT(i.inquiry_date_id, '%M %d, %Y') as formatted_date
+               DATE_FORMAT(i.inquiry_date, '%M %d, %Y %h:%i %p') as formatted_date
         FROM inquiry i
         JOIN client c ON i.client_id = c.client_id
         LEFT JOIN event_table e ON i.event_id = e.event_id
@@ -88,6 +117,8 @@ try {
     error_log("Inquiry fetch error: " . $e->getMessage());
     $error = "An error occurred while fetching inquiries.";
 }
+
+if (!isset($inquiries) || !is_array($inquiries)) $inquiries = [];
 ?>
 
 <!DOCTYPE html>
@@ -372,6 +403,15 @@ try {
                 overflow-x: auto;
             }
         }
+
+        .status-badge.status-deleted { background: #e0e0e0; color: #888; }
+        .status-badge.status-pending { background: #fff3cd; color: #856404; }
+        .status-badge.status-approved { background: #d4edda; color: #155724; font-weight: 600; }
+        .status-badge.status-rejected { background: #f8d7da; color: #721c24; }
+        .status-badge.status-rejected-by-admin { background: #f5c6cb; color: #721c24; }
+        .status-badge.status-confirmed { background: #d4edda; color: #155724; }
+        .status-badge.status-canceled { background: #f5c6cb; color: #721c24; }
+        .status-badge.status-completed { background: #cce5ff; color: #004085; }
     </style>
 </head>
 <body>
@@ -442,6 +482,7 @@ try {
                         <th>Client</th>
                         <th>Event</th>
                         <th>Date</th>
+                        <th>Inquiry Created</th>
                         <th>Budget</th>
                         <th>Status</th>
                         <th>Actions</th>
@@ -454,10 +495,11 @@ try {
                             <td><?php echo htmlspecialchars($inquiry['client_name']); ?></td>
                             <td><?php echo htmlspecialchars($inquiry['event_name']); ?></td>
                             <td><?php echo htmlspecialchars($inquiry['event_date']); ?></td>
+                            <td><?php echo !empty($inquiry['formatted_date']) ? htmlspecialchars($inquiry['formatted_date']) : 'Not set'; ?></td>
                             <td>₱<?php echo number_format($inquiry['budget'], 2); ?></td>
                             <td>
-                                <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $inquiry['inquiry_status'])); ?>">
-                                    <?php echo ucwords($inquiry['inquiry_status']); ?>
+                                <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', getAdminStatus($inquiry['inquiry_status']))); ?>">
+                                    <?php echo getAdminStatus($inquiry['inquiry_status']); ?>
                                 </span>
                             </td>
                             <td>
@@ -484,7 +526,8 @@ try {
                                             <div class="info-value">
                                                 Event: <?php echo htmlspecialchars($inquiry['event_name']); ?><br>
                                                 Type: <?php echo htmlspecialchars($inquiry['event_type']); ?><br>
-                                                Date: <?php echo htmlspecialchars($inquiry['event_date']); ?>
+                                                Date: <?php echo htmlspecialchars($inquiry['event_date']); ?><br>
+                                                Inquiry Created: <?php echo !empty($inquiry['formatted_date']) ? htmlspecialchars($inquiry['formatted_date']) : 'Not set'; ?>
                                             </div>
                                         </div>
                                         <?php if ($inquiry['event_description']): ?>

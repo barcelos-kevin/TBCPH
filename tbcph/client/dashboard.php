@@ -144,6 +144,7 @@ try {
             i.inquiry_id,
             i.budget,
             i.inquiry_status,
+            i.inquiry_date,
             e.event_id,
             e.event_name,
             e.event_date,
@@ -151,9 +152,10 @@ try {
             e.venue_equipment,
             l.address,
             l.city,
-            ts.time as time_slot,
+            ts.start_time,
+            ts.end_time,
             e.description,
-            GROUP_CONCAT(g.name) as genres,
+            GROUP_CONCAT(DISTINCT g.name) as genres,
             GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
             GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links,
             h.busker_id as hired_busker_id,
@@ -194,6 +196,36 @@ if (isset($_SESSION['success'])) {
 if (isset($_SESSION['error'])) {
     $error = $_SESSION['error'];
     unset($_SESSION['error']);
+}
+
+// Add a function to map inquiry_status to client status
+function getClientStatus($status, $admin_status = null, $busker_status = null) {
+    // You can expand this logic as needed for more complex mappings
+    switch (strtolower($status)) {
+        case 'deleted':
+        case 'deleted by client':
+            return 'Deleted';
+        case 'pending':
+            return 'Pending';
+        case 'approved':
+        case 'approve by admin':
+            return 'Pending';
+        case 'rejected':
+            return 'Rejected';
+        case 'rejected by admin':
+            return 'Rejected';
+        case 'rejected by busker':
+            return 'Rejected';
+        case 'confirmed':
+            return 'Confirmed';
+        case 'canceled':
+        case 'cancelled':
+            return 'Canceled';
+        case 'completed':
+            return 'Completed';
+        default:
+            return ucfirst($status);
+    }
 }
 ?>
 
@@ -300,10 +332,12 @@ if (isset($_SESSION['error'])) {
             font-weight: 500;
         }
 
-        .status-badge.pending { background: #f1c40f; color: #fff; }
-        .status-badge.approved { background: #2ecc71; color: #fff; }
-        .status-badge.rejected { background: #e74c3c; color: #fff; }
-        .status-badge.completed { background: #3498db; color: #fff; }
+        .status-badge.deleted { background: #e0e0e0; color: #888; }
+        .status-badge.pending { background: #fff3cd; color: #856404; }
+        .status-badge.rejected { background: #f8d7da; color: #721c24; }
+        .status-badge.confirmed { background: #d4edda; color: #155724; }
+        .status-badge.canceled { background: #f5c6cb; color: #721c24; }
+        .status-badge.completed { background: #cce5ff; color: #004085; }
 
         .action-buttons {
             display: flex;
@@ -591,6 +625,23 @@ if (isset($_SESSION['error'])) {
             font-size: 0.9em;
             padding: 5px 10px;
         }
+
+        .genre-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 5px;
+        }
+        .badge {
+            display: inline-block;
+            background: #3498db;
+            color: #fff;
+            border-radius: 12px;
+            padding: 4px 12px;
+            font-size: 0.95em;
+            margin-bottom: 4px;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -623,7 +674,7 @@ if (isset($_SESSION['error'])) {
                             <th>Event Name</th>
                             <th>Event Type</th>
                             <th>Date</th>
-                            <th>Time</th>
+                            <th>Inquiry Created</th>
                             <th>Budget</th>
                             <th>Hired Busker</th>
                             <th>Status</th>
@@ -641,7 +692,7 @@ if (isset($_SESSION['error'])) {
                                     <td><?php echo htmlspecialchars($inquiry['event_name']); ?></td>
                                     <td><?php echo htmlspecialchars($inquiry['event_type']); ?></td>
                                     <td><?php echo date('F j, Y', strtotime($inquiry['event_date'])); ?></td>
-                                    <td><?php echo $inquiry['time_slot'] ? date('g:i A', strtotime($inquiry['time_slot'])) : 'Not set'; ?></td>
+                                    <td><?php echo $inquiry['inquiry_date'] ? date('F j, Y g:i A', strtotime($inquiry['inquiry_date'])) : 'Not set'; ?></td>
                                     <td>₱<?php echo number_format($inquiry['budget']); ?></td>
                                     <td>
                                         <?php if ($inquiry['hired_busker_id']): ?>
@@ -651,13 +702,13 @@ if (isset($_SESSION['error'])) {
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                    <span class="status-badge <?php echo strtolower($inquiry['inquiry_status']); ?>">
-                                        <?php echo ucfirst($inquiry['inquiry_status']); ?>
-                                    </span>
+                                        <span class="status-badge <?php echo strtolower(getClientStatus($inquiry['inquiry_status'])); ?>">
+                                            <?php echo getClientStatus($inquiry['inquiry_status']); ?>
+                                        </span>
                                     </td>
                                     <td>
                                         <div class="action-buttons">
-                                            <button class="btn-view" onclick="viewInquiry(<?php echo htmlspecialchars(json_encode($inquiry)); ?>)">View</button>
+                                            <button class="btn-view" onclick='viewInquiry(<?php echo json_encode($inquiry, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)'>View</button>
                             </div>
                                     </td>
                                 </tr>
@@ -705,16 +756,13 @@ if (isset($_SESSION['error'])) {
                 </div>
 
                 <div class="form-group">
-                    <label for="edit_time_slot">Time Slot</label>
-                    <select id="edit_time_slot" name="time_slot_id">
-                        <option value="">Select Time Slot</option>
-                        <?php
-                        $stmt = $conn->query("SELECT time_slot_id, time FROM time_slot ORDER BY time");
-                        while ($slot = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                            echo "<option value='{$slot['time_slot_id']}'>{$slot['time']}</option>";
-                        }
-                        ?>
-                    </select>
+                    <label for="edit_start_time">Start Time</label>
+                    <input type="time" id="edit_start_time" name="edit_start_time" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit_end_time">End Time</label>
+                    <input type="time" id="edit_end_time" name="edit_end_time" required>
                 </div>
 
                 <div class="form-group">
@@ -782,6 +830,33 @@ if (isset($_SESSION['error'])) {
     <?php include '../includes/footer.php'; ?>
 
     <script>
+        // JS version of getClientStatus for status mapping in the modal
+        function getClientStatus(status) {
+            switch ((status || '').toLowerCase()) {
+                case 'deleted':
+                case 'deleted by client':
+                    return 'Deleted';
+                case 'pending':
+                    return 'Pending';
+                case 'approved':
+                case 'approve by admin':
+                    return 'Pending';
+                case 'rejected':
+                case 'rejected by admin':
+                case 'rejected by busker':
+                    return 'Rejected';
+                case 'confirmed':
+                    return 'Confirmed';
+                case 'canceled':
+                case 'cancelled':
+                    return 'Canceled';
+                case 'completed':
+                    return 'Completed';
+                default:
+                    return status ? status.charAt(0).toUpperCase() + status.slice(1) : '';
+            }
+        }
+
         function viewInquiry(inquiry) {
             const modal = document.getElementById('viewModal');
             const content = document.getElementById('viewContent');
@@ -792,7 +867,10 @@ if (isset($_SESSION['error'])) {
                     <p><strong>Event Name:</strong> ${inquiry.event_name}</p>
                     <p><strong>Event Type:</strong> ${inquiry.event_type}</p>
                     <p><strong>Event Date:</strong> ${new Date(inquiry.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    <p><strong>Time Slot:</strong> ${inquiry.time_slot ? new Date('1970-01-01T' + inquiry.time_slot).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
+                    <p><strong>Inquiry Created:</strong> ${inquiry.inquiry_date ? new Date(inquiry.inquiry_date.replace(' ', 'T')).toLocaleString('en-PH', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
+                    <p><strong>Time Slot:</strong> ${(inquiry.start_time && inquiry.end_time) ?
+                        (new Date('1970-01-01T' + inquiry.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) + ' - ' +
+                         new Date('1970-01-01T' + inquiry.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })) : 'Not set'}</p>
                 </div>
 
                 <div class="detail-section">
@@ -804,12 +882,14 @@ if (isset($_SESSION['error'])) {
                 <div class="detail-section">
                     <h3><i class="fas fa-info-circle"></i> Budget and Status</h3>
                     <p><strong>Budget:</strong> ₱${Number(inquiry.budget).toLocaleString()}</p>
-                    <p><strong>Status:</strong> <span class="status-badge ${inquiry.inquiry_status.toLowerCase()}">${inquiry.inquiry_status}</span></p>
+                    <p><strong>Status:</strong> <span class="status-badge ${getClientStatus(inquiry.inquiry_status).toLowerCase()}">${getClientStatus(inquiry.inquiry_status)}</span></p>
                 </div>
 
                 <div class="detail-section">
                     <h3><i class="fas fa-music"></i> Preferred Genres</h3>
-                    <p>${inquiry.genres ? inquiry.genres.split(',').map(genre => `<span class="badge bg-primary me-2">${genre}</span>`).join('') : 'None selected'}</p>
+                    <div class="genre-badges">
+                        ${inquiry.genres ? inquiry.genres.split(',').map(genre => `<span class="badge">${genre}</span>`).join('') : 'None selected'}
+                    </div>
                 </div>
 
                 <div class="detail-section">
@@ -825,7 +905,7 @@ if (isset($_SESSION['error'])) {
                             <p><strong>Contact:</strong> ${inquiry.busker_contact}</p>
                             <p><strong>Email:</strong> ${inquiry.busker_email}</p>
                             ${inquiry.busker_genres ? `
-                                <p><strong>Genres:</strong> ${inquiry.busker_genres.split(',').map(genre => `<span class="badge bg-info me-2">${genre}</span>`).join('')}</p>
+                                <p><strong>Genres:</strong> <div class="genre-badges">${inquiry.busker_genres.split(',').map(genre => `<span class="badge">${genre}</span>`).join('')}</div></p>
                             ` : ''}
                             ${inquiry.busker_equipment ? `
                                 <p><strong>Equipment:</strong> ${inquiry.busker_equipment.split(',').map(eq => `<span class="badge bg-secondary me-2">${eq}</span>`).join('')}</p>
@@ -849,8 +929,8 @@ if (isset($_SESSION['error'])) {
                 </div>
             `;
 
-            // Show Edit/Delete if pending
-            if (inquiry.inquiry_status.toLowerCase() === 'pending') {
+            // Show Edit/Delete if pending or approved
+            if (inquiry.inquiry_status.toLowerCase() === 'pending' || inquiry.inquiry_status.toLowerCase() === 'approved') {
                 actionBtns.innerHTML = `
                     <button class="btn btn-edit" onclick='editInquiry(${JSON.stringify(inquiry)})'>
                         <i class="fas fa-edit"></i> Edit
@@ -888,7 +968,8 @@ if (isset($_SESSION['error'])) {
             document.getElementById('edit_event_name').value = inquiry.event_name;
             document.getElementById('edit_event_type').value = inquiry.event_type;
             document.getElementById('edit_event_date').value = inquiry.event_date;
-            document.getElementById('edit_time_slot').value = inquiry.time_slot_id || '';
+            document.getElementById('edit_start_time').value = inquiry.start_time || '';
+            document.getElementById('edit_end_time').value = inquiry.end_time || '';
             document.getElementById('edit_budget').value = inquiry.budget;
             document.getElementById('edit_venue_equipment').value = inquiry.venue_equipment || '';
             document.getElementById('edit_description').value = inquiry.description || '';

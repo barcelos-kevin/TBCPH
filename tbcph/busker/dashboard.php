@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once '../includes/config.php'; // Include the database configuration
 
 // Debug session information
@@ -35,9 +34,9 @@ $success = '';
 $error = '';
 
 // Handle booking request actions (Accept/Reject)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['accept_request']) || isset($_POST['reject_request']))) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['confirm_request']) || isset($_POST['reject_request']))) {
     $inquiry_id = (int)$_POST['inquiry_id'];
-    $new_status = isset($_POST['accept_request']) ? 'accepted' : 'rejected';
+    $new_status = isset($_POST['confirm_request']) ? 'confirmed' : 'rejected';
 
     try {
         $conn->beginTransaction();
@@ -46,13 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['accept_request']) ||
         $stmt = $conn->prepare("UPDATE inquiry SET inquiry_status = ? WHERE inquiry_id = ?");
         $stmt->execute([$new_status, $inquiry_id]);
 
-        // If accepted, update hire record to confirmed (or similar, depending on your schema)
-        // Note: Your hire table only has payment_status. If you need a separate booking status for hire, it should be added.
-        // For now, we rely on inquiry_status to reflect busker acceptance.
-        if ($new_status === 'accepted') {
-            // Optionally, you might want to update a 'booking_status' in the hire table if it existed
-            // For example: UPDATE hire SET booking_status = 'confirmed' WHERE inquiry_id = ? AND busker_id = ?;
-            $success = 'Booking request accepted successfully!';
+        if ($new_status === 'confirmed') {
+            $success = 'Booking request confirmed successfully!';
         } else {
             $success = 'Booking request rejected.';
         }
@@ -201,42 +195,21 @@ try {
 
 // Get busker's booking requests (inquiry_status = 'approved' by admin)
 try {
-    $stmt = $conn->prepare("
-        SELECT 
-            h.order_id,
-            h.inquiry_id,
-            h.payment_status,
-            h.performance_time,
-            i.budget,
-            i.inquiry_status,
-            e.event_name,
-            e.event_type,
-            e.event_date,
-            e.venue_equipment,
-            e.description,
-            l.address,
-            l.city,
-            ts.time as time_slot,
-            c.name as client_name,
-            c.phone as client_contact,
-            c.email as client_email,
-            GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
-            GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links
+    $stmt = $conn->prepare("SELECT h.order_id, h.inquiry_id, h.payment_status, h.performance_time,
+                           i.budget, i.inquiry_status,
+                           e.event_name, e.event_type, e.event_date, e.venue_equipment, e.description,
+                           c.name as client_name, c.phone as client_contact, c.email as client_email,
+                           ts.start_time, ts.end_time
         FROM hire h
         JOIN inquiry i ON h.inquiry_id = i.inquiry_id
         JOIN event_table e ON i.event_id = e.event_id
-        LEFT JOIN location l ON e.location_id = l.location_id
-        LEFT JOIN time_slot ts ON e.time_slot_id = ts.time_slot_id
         JOIN client c ON i.client_id = c.client_id
-        LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
-        LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
+        LEFT JOIN time_slot ts ON e.time_slot_id = ts.time_slot_id
         WHERE h.busker_id = ? AND i.inquiry_status = 'approved'
-        GROUP BY h.order_id
         ORDER BY e.event_date DESC
     ");
     $stmt->execute([$_SESSION['busker_id']]);
     $booking_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    error_log("Booking Requests: " . print_r($booking_requests, true));
 } catch (PDOException $e) {
     $error_message = 'Error fetching booking requests: ' . $e->getMessage();
 }
@@ -258,7 +231,8 @@ try {
             e.description,
             l.address,
             l.city,
-            ts.time as time_slot,
+            ts.start_time,
+            ts.end_time,
             c.name as client_name,
             c.phone as client_contact,
             c.email as client_email,
@@ -272,7 +246,7 @@ try {
         JOIN client c ON i.client_id = c.client_id
         LEFT JOIN inquiry_document id ON i.inquiry_id = id.inquiry_id
         LEFT JOIN supporting_document sd ON id.docs_id = sd.docs_id
-        WHERE h.busker_id = ? AND i.inquiry_status = 'accepted' AND e.event_date >= CURDATE()
+        WHERE h.busker_id = ? AND (i.inquiry_status = 'accepted' OR i.inquiry_status = 'confirmed') AND e.event_date >= CURDATE()
         GROUP BY h.order_id
         ORDER BY e.event_date ASC
     ");
@@ -300,7 +274,8 @@ try {
             e.description,
             l.address,
             l.city,
-            ts.time as time_slot,
+            ts.start_time,
+            ts.end_time,
             c.name as client_name,
             c.phone as client_contact,
             c.email as client_email,
@@ -342,7 +317,8 @@ try {
             e.description,
             l.address,
             l.city,
-            ts.time as time_slot,
+            ts.start_time,
+            ts.end_time,
             c.name as client_name,
             c.phone as client_contact,
             c.email as client_email,
@@ -364,6 +340,35 @@ try {
     $document_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $error = 'Error fetching events for document management: ' . $e->getMessage();
+}
+
+// Add a function to map inquiry_status to busker status
+function getBuskerStatus($status) {
+    switch (strtolower($status)) {
+        case 'deleted':
+        case 'deleted by client':
+            return 'Not Visible';
+        case 'pending':
+            return 'Not Visible';
+        case 'approved':
+            return 'Pending';
+        case 'approve by admin':
+            return 'Pending';
+        case 'rejected':
+        case 'rejected by busker':
+            return 'Rejected by Busker';
+        case 'rejected by admin':
+            return 'Not Visible';
+        case 'confirmed':
+            return 'Confirmed';
+        case 'canceled':
+        case 'cancelled':
+            return 'Not Visible';
+        case 'completed':
+            return 'Completed';
+        default:
+            return ucfirst($status);
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -501,10 +506,13 @@ try {
             font-weight: 500;
         }
 
-        .status-badge.pending { background: #f1c40f; color: #fff; }
-        .status-badge.approved { background: #28a745; color: #fff; } /* Added for accepted requests */
-        .status-badge.rejected { background: #dc3545; color: #fff; } /* Added for rejected requests */
-        .status-badge.completed { background: #6c757d; color: #fff; } /* Added for completed events */
+        .status-badge.not-visible { background: #e0e0e0; color: #888; }
+        .status-badge.pending { background: #fff3cd; color: #856404; }
+        .status-badge.approve-by-admin { background: #b3e5fc; color: #0277bd; }
+        .status-badge.rejected-by-busker { background: #f8d7da; color: #721c24; }
+        .status-badge.confirmed { background: #d4edda; color: #155724; }
+        .status-badge.canceled { background: #f5c6cb; color: #721c24; }
+        .status-badge.completed { background: #cce5ff; color: #004085; }
         .status-badge.busker.selected { background: #007bff; color: #fff; } /* Specific for busker selected status */
 
         .action-buttons {
@@ -534,16 +542,122 @@ try {
         .document-item i {
             color: #007bff;
         }
+
+        /* Improved View Modal Styles */
+        #viewModal.modal {
+            display: none;
+            position: fixed;
+            z-index: 3000;
+            left: 0;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: auto;
+            background: rgba(0,0,0,0.4);
+            align-items: center;
+            justify-content: center;
+        }
+        #viewModal .modal-content {
+            background: #fff;
+            margin: 40px auto;
+            padding: 32px 32px 24px 32px;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 95%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            position: relative;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        #viewModal .close-button {
+            position: absolute;
+            top: 18px;
+            right: 24px;
+            font-size: 2rem;
+            color: #888;
+            cursor: pointer;
+            transition: color 0.2s;
+            z-index: 10;
+        }
+        #viewModal .close-button:hover {
+            color: #e74c3c;
+        }
+        #viewModal h2 {
+            margin-top: 0;
+            margin-bottom: 18px;
+            font-size: 2rem;
+            color: #2c3e50;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 8px;
+        }
+        #viewModal .detail-section {
+            margin-bottom: 22px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        #viewModal .detail-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        #viewModal h3 {
+            font-size: 1.15rem;
+            color: #2980b9;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #viewModal p {
+            margin: 4px 0 8px 0;
+            color: #222;
+            font-size: 1rem;
+        }
+        #viewModal .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 0.95em;
+            font-weight: 500;
+            background: #fff3cd;
+            color: #856404;
+            margin-left: 6px;
+        }
+        #viewModal .document-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        #viewModal .document-item a {
+            color: #007bff;
+            text-decoration: none;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        #viewModal .document-item a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 700px) {
+            #viewModal .modal-content {
+                padding: 18px 6px 12px 6px;
+                max-width: 98vw;
+            }
+            #viewModal h2 {
+                font-size: 1.3rem;
+            }
+            #viewModal h3 {
+                font-size: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>
     <div class="container">
-        <a href="../includes/logout.php" class="btn btn-danger logout-btn">Logout</a>
         <h1 class="my-4">Busker Dashboard</h1>
         <ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
             <li class="nav-item">
-                <a class="nav-link" id="upcoming-tab" data-toggle="tab" href="#upcoming" role="tab">Upcoming Bookings</a>
+                <a class="nav-link active" id="upcoming-tab" data-toggle="tab" href="#upcoming" role="tab">Upcoming Bookings</a>
             </li>
             <li class="nav-item">
                 <a class="nav-link" id="requests-tab" data-toggle="tab" href="#requests" role="tab">Booking Requests</a>
@@ -552,15 +666,12 @@ try {
                 <a class="nav-link" id="past-tab" data-toggle="tab" href="#past" role="tab">Past Events</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link active" id="profile-tab" data-toggle="tab" href="#profile" role="tab">Profile Management</a>
-            </li>
-            <li class="nav-item">
                 <a class="nav-link" id="documents-tab" data-toggle="tab" href="#documents" role="tab">Document Management</a>
             </li>
         </ul>
         <div class="tab-content" id="dashboardTabsContent">
             <!-- Upcoming Bookings Tab Content -->
-            <div class="tab-pane fade" id="upcoming" role="tabpanel">
+            <div class="tab-pane fade show active" id="upcoming" role="tabpanel">
                 <h2>Upcoming Bookings</h2>
                 <?php if (isset($error_message)): ?><!-- <div class="alert alert-danger"><?php echo $error_message; ?></div> --> <?php endif; ?>
 
@@ -580,24 +691,35 @@ try {
                         <tbody>
                             <?php if (empty($upcoming_events)): ?>
                                 <tr>
-                                    <td colspan="7" style="text-align: center;">No upcoming bookings found.</td>
+                                    <td colspan="6" style="text-align: center;">No upcoming bookings found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($upcoming_events as $event): ?>
                                     <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)" style="cursor:pointer;">
-                                        <td><?php echo htmlspecialchars($event['event_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($event['event_type']); ?></td>
-                                        <td><?php echo date('F j, Y', strtotime($event['event_date'])); ?></td>
-                                        <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_name'] ?? ''); ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_type'] ?? ''); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($event['event_date'] ?? '')); ?></td>
+                                        <td>
+                                            <?php
+                                            if (!empty($event['start_time']) && !empty($event['end_time'])) {
+                                                $tz = new DateTimeZone('Asia/Manila');
+                                                $start = new DateTime($event['start_time'], $tz);
+                                                $end = new DateTime($event['end_time'], $tz);
+                                                echo $start->format('g:i A') . ' - ' . $end->format('g:i A');
+                                            } else {
+                                                echo 'Not set';
+                                            }
+                                            ?>
+                                        </td>
                                         <td><?php echo htmlspecialchars($event['client_name']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower($event['payment_status']); ?>">
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', $event['payment_status'])); ?>">
                                                 <?php echo ucfirst($event['payment_status']); ?>
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '.', $event['inquiry_status'])); ?>">
-                                                <?php echo ucfirst($event['inquiry_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($event['inquiry_status']))); ?>">
+                                                <?php echo getBuskerStatus($event['inquiry_status']); ?>
                                             </span>
                                         </td>
                                     </tr>
@@ -630,26 +752,37 @@ try {
                         <tbody>
                             <?php if (empty($booking_requests)): ?>
                                 <tr>
-                                    <td colspan="8" style="text-align: center;">No approved booking requests found.</td>
+                                    <td colspan="7" style="text-align: center;">No approved booking requests found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($booking_requests as $request): ?>
                                     <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($request)); ?>)" style="cursor:pointer;">
-                                        <td><?php echo htmlspecialchars($request['event_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($request['event_type']); ?></td>
-                                        <td><?php echo date('F j, Y', strtotime($request['event_date'])); ?></td>
-                                        <td><?php echo $request['time_slot'] ? date('g:i A', strtotime($request['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($request['event_name'] ?? ''); ?></td>
+                                        <td><?php echo htmlspecialchars($request['event_type'] ?? ''); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($request['event_date'] ?? '')); ?></td>
+                                        <td>
+                                            <?php
+                                            if (!empty($request['start_time']) && !empty($request['end_time'])) {
+                                                $tz = new DateTimeZone('Asia/Manila');
+                                                $start = new DateTime($request['start_time'], $tz);
+                                                $end = new DateTime($request['end_time'], $tz);
+                                                echo $start->format('g:i A') . ' - ' . $end->format('g:i A');
+                                            } else {
+                                                echo 'Not set';
+                                            }
+                                            ?>
+                                        </td>
                                         <td><?php echo htmlspecialchars($request['client_name']); ?></td>
                                         <td>₱<?php echo number_format($request['budget']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '.', $request['inquiry_status'])); ?>">
-                                                <?php echo ucfirst($request['inquiry_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($request['inquiry_status']))); ?>">
+                                                <?php echo getBuskerStatus($request['inquiry_status']); ?>
                                             </span>
                                         </td>
                                         <td>
                                             <form action="" method="POST" class="d-inline-block me-2">
                                                 <input type="hidden" name="inquiry_id" value="<?php echo $request['inquiry_id']; ?>">
-                                                <button type="submit" name="accept_request" class="btn btn-success btn-sm">Accept</button>
+                                                <button type="submit" name="confirm_request" class="btn btn-success btn-sm">Confirm</button>
                                             </form>
                                             <form action="" method="POST" class="d-inline-block">
                                                 <input type="hidden" name="inquiry_id" value="<?php echo $request['inquiry_id']; ?>">
@@ -686,24 +819,35 @@ try {
                         <tbody>
                             <?php if (empty($past_events)): ?>
                                 <tr>
-                                    <td colspan="7" style="text-align: center;">No past events found.</td>
+                                    <td colspan="6" style="text-align: center;">No past events found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($past_events as $event): ?>
                                     <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)" style="cursor:pointer;">
-                                        <td><?php echo htmlspecialchars($event['event_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($event['event_type']); ?></td>
-                                        <td><?php echo date('F j, Y', strtotime($event['event_date'])); ?></td>
-                                        <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_name'] ?? ''); ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_type'] ?? ''); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($event['event_date'] ?? '')); ?></td>
+                                        <td>
+                                            <?php
+                                            if (!empty($event['start_time']) && !empty($event['end_time'])) {
+                                                $tz = new DateTimeZone('Asia/Manila');
+                                                $start = new DateTime($event['start_time'], $tz);
+                                                $end = new DateTime($event['end_time'], $tz);
+                                                echo $start->format('g:i A') . ' - ' . $end->format('g:i A');
+                                            } else {
+                                                echo 'Not set';
+                                            }
+                                            ?>
+                                        </td>
                                         <td><?php echo htmlspecialchars($event['client_name']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower($event['payment_status']); ?>">
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', $event['payment_status'])); ?>">
                                                 <?php echo ucfirst($event['payment_status']); ?>
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '.', $event['inquiry_status'])); ?>">
-                                                <?php echo ucfirst($event['inquiry_status']); ?>
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', getBuskerStatus($event['inquiry_status']))); ?>">
+                                                <?php echo getBuskerStatus($event['inquiry_status']); ?>
                                             </span>
                                         </td>
                                     </tr>
@@ -714,93 +858,6 @@ try {
                 </div>
             </div>
 
-            <div class="tab-pane fade show active" id="profile" role="tabpanel">
-                <h2>Profile Management</h2>
-                <?php if ($busker_data): ?>
-                    <?php if (!empty($success)): ?>
-                        <div class="alert alert-success alert-fixed"><?php echo $success; ?></div>
-                    <?php endif; ?>
-                    <?php if (!empty($error)): ?>
-                        <!-- <div class="alert alert-danger"><?php echo $error; ?></div> -->
-                    <?php endif; ?>
-
-                    <form action="" method="POST" class="profile-form">
-                        <input type="hidden" name="update_profile" value="1">
-
-                        <h3>Personal and Contact Information</h3>
-                        <div class="form-group">
-                            <label for="email">Email (Cannot be changed)</label>
-                            <input type="email" class="form-control" id="email" value="<?php echo htmlspecialchars($busker_data['email']); ?>" disabled>
-                        </div>
-                        <div class="form-group">
-                            <label for="band_name">Band Name (Optional)</label>
-                            <input type="text" class="form-control" id="band_name" name="band_name" value="<?php echo htmlspecialchars($busker_data['band_name']); ?>">
-                        </div>
-                        <div class="form-group">
-                            <label for="name">Full Name</label>
-                            <input type="text" class="form-control" id="name" name="name" value="<?php echo htmlspecialchars($busker_data['name']); ?>" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="contact_number">Contact Number</label>
-                            <input type="text" class="form-control" id="contact_number" name="contact_number" value="<?php echo htmlspecialchars($busker_data['contact_number']); ?>" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="address">Address</label>
-                            <textarea class="form-control" id="address" name="address" rows="3" required><?php echo htmlspecialchars($busker_data['address']); ?></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="birthday">Birthday</label>
-                            <input type="date" class="form-control" id="birthday" name="birthday" value="<?php echo htmlspecialchars($busker_data['birthday']); ?>">
-                        </div>
-                        <div class="form-group form-check">
-                            <input type="checkbox" class="form-check-input" id="has_equipment" name="has_equipment" value="1" <?php echo $busker_data['has_equipment'] ? 'checked' : ''; ?>>
-                            <label class="form-check-label" for="has_equipment">I have my own equipment</label>
-                        </div>
-
-                        <h3 class="mt-4">Genres</h3>
-                        <div class="form-group">
-                            <div class="genre-checkbox-group">
-                                <?php foreach ($all_genres as $genre): ?>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" id="genre_<?php echo $genre['genre_id']; ?>" name="genres[]" value="<?php echo $genre['genre_id']; ?>"
-                                            <?php echo in_array($genre['genre_id'], $busker_genre_ids) ? 'checked' : ''; ?>>
-                                        <label class="form-check-label" for="genre_<?php echo $genre['genre_id']; ?>"><?php echo htmlspecialchars($genre['name']); ?></label>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                        
-                        <h3 class="mt-4">Equipment (Current)</h3>
-                        <div class="equipment-list-section">
-                            <?php if (!empty($busker_equipment)): ?>
-                                <ul>
-                                    <?php foreach ($busker_equipment as $eq): ?>
-                                        <li>
-                                            <?php echo htmlspecialchars($eq['equipment_name']) . ' (' . htmlspecialchars($eq['quantity']) . ', ' . htmlspecialchars($eq['eq_condition']) . ')'; ?>
-                                            <form action="" method="POST" style="display:inline;">
-                                                <input type="hidden" name="delete_equipment" value="1">
-                                                <input type="hidden" name="equipment_id" value="<?php echo $eq['equipment_id']; ?>">
-                                                <button type="submit" class="remove-equipment-btn" onclick="return confirm('Are you sure you want to delete this equipment?');"><i class="fas fa-times"></i></button>
-                                            </form>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            <?php else: ?>
-                                <p>No equipment listed.</p>
-                            <?php endif; ?>
-                            
-                            <!-- Add Equipment Button -->
-                            <button type="button" class="btn btn-primary mt-3" data-toggle="modal" data-target="#addEquipmentModal">
-                                <i class="fas fa-plus"></i> Add New Equipment
-                            </button>
-                        </div>
-
-                        <button type="submit" name="update_profile" class="btn btn-primary mt-4">Update Profile</button>
-                    </form>
-                <?php else: ?>
-                    <p class="alert alert-danger">Could not load busker profile. Please try again.</p>
-                <?php endif; ?>
-            </div>
             <div class="tab-pane fade" id="documents" role="tabpanel">
                 <h2>Document Management</h2>
                 <?php if (isset($error)): ?><!-- <div class="alert alert-danger"><?php echo $error; ?></div> --> <?php endif; ?>
@@ -812,27 +869,26 @@ try {
                                 <th>Event Name</th>
                                 <th>Event Type</th>
                                 <th>Date</th>
-                                <th>Time</th>
                                 <th>Client</th>
                                 <th>Payment Status</th>
                                 <th>Documents</th>
+                                <th>Time</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($document_events)): ?>
                                 <tr>
-                                    <td colspan="7" style="text-align: center;">No events found.</td>
+                                    <td colspan="6" style="text-align: center;">No events found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($document_events as $event): ?>
                                     <tr onclick="viewEvent(<?php echo htmlspecialchars(json_encode($event)); ?>)" style="cursor:pointer;">
-                                        <td><?php echo htmlspecialchars($event['event_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($event['event_type']); ?></td>
-                                        <td><?php echo date('F j, Y', strtotime($event['event_date'])); ?></td>
-                                        <td><?php echo $event['time_slot'] ? date('g:i A', strtotime($event['time_slot'])) : 'Not set'; ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_name'] ?? ''); ?></td>
+                                        <td><?php echo htmlspecialchars($event['event_type'] ?? ''); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($event['event_date'] ?? '')); ?></td>
                                         <td><?php echo htmlspecialchars($event['client_name']); ?></td>
                                         <td>
-                                            <span class="status-badge <?php echo strtolower($event['payment_status']); ?>">
+                                            <span class="status-badge <?php echo strtolower(str_replace(' ', '-', $event['payment_status'])); ?>">
                                                 <?php echo ucfirst($event['payment_status']); ?>
                                             </span>
                                         </td>
@@ -853,6 +909,18 @@ try {
                                                     <p>No documents uploaded</p>
                                                 <?php endif; ?>
                                             </div>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            if (!empty($event['start_time']) && !empty($event['end_time'])) {
+                                                $tz = new DateTimeZone('Asia/Manila');
+                                                $start = new DateTime($event['start_time'], $tz);
+                                                $end = new DateTime($event['end_time'], $tz);
+                                                echo $start->format('g:i A') . ' - ' . $end->format('g:i A');
+                                            } else {
+                                                echo 'Not set';
+                                            }
+                                            ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -923,10 +991,7 @@ try {
             const tab = urlParams.get('tab');
             if (tab) {
                 $(`#dashboardTabs a[href="#${tab}"]`).tab('show');
-            } else {
-                // Default to 'requests' tab if no tab is specified
-                $(`#dashboardTabs a[href="#requests"]`).tab('show');
-            }
+            } // else do nothing, Upcoming Bookings is default
             
             // Fade out alerts after a few seconds
             setTimeout(function() {
@@ -945,37 +1010,33 @@ try {
             content.innerHTML = `
                 <div class="detail-section">
                     <h3><i class="fas fa-calendar-alt"></i> Event Information</h3>
-                    <p><strong>Event Name:</strong> ${event.event_name}</p>
-                    <p><strong>Event Type:</strong> ${event.event_type}</p>
-                    <p><strong>Event Date:</strong> ${new Date(event.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    <p><strong>Time Slot:</strong> ${event.time_slot ? new Date('1970-01-01T' + event.time_slot).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
+                    <p><strong>Event Name:</strong> ${event.event_name || 'N/A'}</p>
+                    <p><strong>Event Type:</strong> ${event.event_type || 'N/A'}</p>
+                    <p><strong>Event Date:</strong> ${event.event_date ? new Date(event.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
                 </div>
-
                 <div class="detail-section">
                     <h3><i class="fas fa-map-marker-alt"></i> Location</h3>
                     <p><strong>Address:</strong> ${event.address || 'Not specified'}</p>
                     <p><strong>City:</strong> ${event.city || 'Not specified'}</p>
                 </div>
-
                 <div class="detail-section">
                     <h3><i class="fas fa-user"></i> Client Information</h3>
-                    <p><strong>Name:</strong> ${event.client_name}</p>
+                    <p><strong>Name:</strong> ${event.client_name || 'N/A'}</p>
                     <p><strong>Contact:</strong> ${event.client_contact || 'Not provided'}</p>
-                    <p><strong>Email:</strong> ${event.client_email}</p>
+                    <p><strong>Email:</strong> ${event.client_email || 'N/A'}</p>
                 </div>
-
                 <div class="detail-section">
                     <h3><i class="fas fa-info-circle"></i> Event Details</h3>
-                    <p><strong>Budget:</strong> ₱${Number(event.budget).toLocaleString()}</p>
-                    <p><strong>Payment Status:</strong> <span class="status-badge ${event.payment_status.toLowerCase()}">${event.payment_status}</span></p>
-                    <p><strong>Performance Time:</strong> ${event.performance_time ? new Date('1970-01-01T' + event.performance_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Not set'}</p>
+                    <p><strong>Budget:</strong> ₱${event.budget ? Number(event.budget).toLocaleString() : 'N/A'}</p>
+                    <p><strong>Payment Status:</strong> <span class="status-badge ${event.payment_status ? event.payment_status.toLowerCase() : ''}">${event.payment_status || 'N/A'}</span></p>
+                    <p><strong>Time:</strong> ${(event.start_time && event.end_time) ?
+                        (new Date('1970-01-01T' + event.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) + ' - ' +
+                         new Date('1970-01-01T' + event.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })) : 'Not set'}</p>
                 </div>
-
                 <div class="detail-section">
                     <h3><i class="fas fa-tools"></i> Venue Equipment</h3>
                     <p>${event.venue_equipment || 'None specified'}</p>
                 </div>
-
                 <div class="detail-section">
                     <h3><i class="fas fa-file-alt"></i> Supporting Documents</h3>
                     <div class="document-list">
