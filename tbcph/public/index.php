@@ -31,6 +31,7 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TBCPH - The Busking Community PH</title>
+    <link rel="icon" href="/tbcph/assets/images/logo.jpg">
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
     <style>
         .hero {

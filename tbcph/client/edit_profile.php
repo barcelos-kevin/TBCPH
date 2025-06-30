@@ -463,6 +463,7 @@ include __DIR__ . '/../includes/header.php';
     font-size: 1.2em;
 }
 </style>
+<link rel="icon" href="/tbcph/assets/images/logo.jpg">
 
 <?php include __DIR__ . '/../includes/footer.php'; ?> 
 </html> 
