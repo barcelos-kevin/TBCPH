@@ -6,6 +6,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+include __DIR__ . '/../includes/header.php';
+
 // Fetch all active buskers with their genres and equipment
 $query = "SELECT b.*, 
           GROUP_CONCAT(DISTINCT g.name) as genres,
@@ -342,27 +344,6 @@ $genres = $genres_stmt->fetchAll(PDO::FETCH_ASSOC);
     </style>
 </head>
 <body>
-    <header>
-        <div class="container">
-            <nav class="nav-container">
-                <a href="index.php" class="logo">TBCPH</a>
-                <div class="nav-links">
-                    <a href="index.php">Home</a>
-                    <a href="about.php">About</a>
-                    <a href="buskers.php">Buskers</a>
-                    <a href="contact.php">Contact</a>
-                    <?php if (isset($_SESSION['client_id'])): ?>
-                        <a href="../client/dashboard.php">Dashboard</a>
-                        <a href="/tbcph/includes/logout.php?type=client">Logout</a>
-                    <?php else: ?>
-                        <a href="../client/index.php">Login</a>
-                        <a href="../client/register.php">Register</a>
-                    <?php endif; ?>
-                </div>
-            </nav>
-        </div>
-    </header>
-
     <section class="hero">
         <div class="container">
             <h1>Discover Our Talented Buskers</h1>

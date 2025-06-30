@@ -1,5 +1,6 @@
 <?php
 require_once '../includes/config.php';
+include __DIR__ . '/../includes/header.php';
 
 $busker_id = isset($_GET['busker_id']) ? (int)$_GET['busker_id'] : null;
 $error = '';
@@ -434,33 +435,6 @@ try {
     </style>
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="logo">
-                <a href="/tbcph/public/index.php">TBCPH</a>
-            </div>
-            <ul class="nav-links">
-                <li><a href="/tbcph/public/index.php">Home</a></li>
-                <li><a href="/tbcph/public/about.php">About</a></li>
-                <li><a href="/tbcph/public/buskers.php">Buskers</a></li>
-                <li><a href="/tbcph/public/contact.php">Contact</a></li>
-                <?php if(isset($_SESSION['user_type'])): ?>
-                    <?php if($_SESSION['user_type'] == 'admin'): ?>
-                        <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
-                    <?php elseif($_SESSION['user_type'] == 'busker'): ?>
-                        <li><a href="/tbcph/busker/profile.php">My Profile</a></li>
-                    <?php elseif($_SESSION['user_type'] == 'client'): ?>
-                        <li><a href="/tbcph/client/dashboard.php">My Dashboard</a></li>
-                    <?php endif; ?>
-                    <li><a href="/tbcph/includes/logout.php">Logout</a></li>
-                <?php else: ?>
-                    <li><a href="/tbcph/client/register.php">Register</a></li>
-                    <li><a href="/tbcph/client/index.php">Login</a></li>
-                <?php endif; ?>
-            </ul>
-        </nav>
-    </header>
-
     <main>
         <div class="contact-container">
             <h1><?php echo $busker ? "Book " . htmlspecialchars($busker['band_name']) : "Book a Busker"; ?></h1>

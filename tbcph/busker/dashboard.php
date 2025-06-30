@@ -653,11 +653,10 @@ function getBuskerStatus($status) {
 <body>
     <?php include '../includes/header.php'; ?>
     <div class="container">
-        <a href="../includes/logout.php" class="btn btn-danger logout-btn">Logout</a>
         <h1 class="my-4">Busker Dashboard</h1>
         <ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
             <li class="nav-item">
-                <a class="nav-link" id="upcoming-tab" data-toggle="tab" href="#upcoming" role="tab">Upcoming Bookings</a>
+                <a class="nav-link active" id="upcoming-tab" data-toggle="tab" href="#upcoming" role="tab">Upcoming Bookings</a>
             </li>
             <li class="nav-item">
                 <a class="nav-link" id="requests-tab" data-toggle="tab" href="#requests" role="tab">Booking Requests</a>
@@ -666,15 +665,12 @@ function getBuskerStatus($status) {
                 <a class="nav-link" id="past-tab" data-toggle="tab" href="#past" role="tab">Past Events</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link active" id="profile-tab" data-toggle="tab" href="#profile" role="tab">Profile Management</a>
-            </li>
-            <li class="nav-item">
                 <a class="nav-link" id="documents-tab" data-toggle="tab" href="#documents" role="tab">Document Management</a>
             </li>
         </ul>
         <div class="tab-content" id="dashboardTabsContent">
             <!-- Upcoming Bookings Tab Content -->
-            <div class="tab-pane fade" id="upcoming" role="tabpanel">
+            <div class="tab-pane fade show active" id="upcoming" role="tabpanel">
                 <h2>Upcoming Bookings</h2>
                 <?php if (isset($error_message)): ?><!-- <div class="alert alert-danger"><?php echo $error_message; ?></div> --> <?php endif; ?>
 
@@ -861,93 +857,6 @@ function getBuskerStatus($status) {
                 </div>
             </div>
 
-            <div class="tab-pane fade show active" id="profile" role="tabpanel">
-                <h2>Profile Management</h2>
-                <?php if ($busker_data): ?>
-                    <?php if (!empty($success)): ?>
-                        <div class="alert alert-success alert-fixed"><?php echo $success; ?></div>
-                    <?php endif; ?>
-                    <?php if (!empty($error)): ?>
-                        <!-- <div class="alert alert-danger"><?php echo $error; ?></div> -->
-                    <?php endif; ?>
-
-                    <form action="" method="POST" class="profile-form">
-                        <input type="hidden" name="update_profile" value="1">
-
-                        <h3>Personal and Contact Information</h3>
-                        <div class="form-group">
-                            <label for="email">Email (Cannot be changed)</label>
-                            <input type="email" class="form-control" id="email" value="<?php echo htmlspecialchars($busker_data['email']); ?>" disabled>
-                        </div>
-                        <div class="form-group">
-                            <label for="band_name">Band Name (Optional)</label>
-                            <input type="text" class="form-control" id="band_name" name="band_name" value="<?php echo htmlspecialchars($busker_data['band_name']); ?>">
-                        </div>
-                        <div class="form-group">
-                            <label for="name">Full Name</label>
-                            <input type="text" class="form-control" id="name" name="name" value="<?php echo htmlspecialchars($busker_data['name']); ?>" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="contact_number">Contact Number</label>
-                            <input type="text" class="form-control" id="contact_number" name="contact_number" value="<?php echo htmlspecialchars($busker_data['contact_number']); ?>" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="address">Address</label>
-                            <textarea class="form-control" id="address" name="address" rows="3" required><?php echo htmlspecialchars($busker_data['address']); ?></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="birthday">Birthday</label>
-                            <input type="date" class="form-control" id="birthday" name="birthday" value="<?php echo htmlspecialchars($busker_data['birthday']); ?>">
-                        </div>
-                        <div class="form-group form-check">
-                            <input type="checkbox" class="form-check-input" id="has_equipment" name="has_equipment" value="1" <?php echo $busker_data['has_equipment'] ? 'checked' : ''; ?>>
-                            <label class="form-check-label" for="has_equipment">I have my own equipment</label>
-                        </div>
-
-                        <h3 class="mt-4">Genres</h3>
-                        <div class="form-group">
-                            <div class="genre-checkbox-group">
-                                <?php foreach ($all_genres as $genre): ?>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" id="genre_<?php echo $genre['genre_id']; ?>" name="genres[]" value="<?php echo $genre['genre_id']; ?>"
-                                            <?php echo in_array($genre['genre_id'], $busker_genre_ids) ? 'checked' : ''; ?>>
-                                        <label class="form-check-label" for="genre_<?php echo $genre['genre_id']; ?>"><?php echo htmlspecialchars($genre['name']); ?></label>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                        
-                        <h3 class="mt-4">Equipment (Current)</h3>
-                        <div class="equipment-list-section">
-                            <?php if (!empty($busker_equipment)): ?>
-                                <ul>
-                                    <?php foreach ($busker_equipment as $eq): ?>
-                                        <li>
-                                            <?php echo htmlspecialchars($eq['equipment_name'] ?? '') . ' (' . htmlspecialchars($eq['quantity'] ?? '') . ', ' . htmlspecialchars($eq['eq_condition'] ?? '') . ')'; ?>
-                                            <form action="" method="POST" style="display:inline;">
-                                                <input type="hidden" name="delete_equipment" value="1">
-                                                <input type="hidden" name="equipment_id" value="<?php echo $eq['equipment_id']; ?>">
-                                                <button type="submit" class="remove-equipment-btn" onclick="return confirm('Are you sure you want to delete this equipment?');"><i class="fas fa-times"></i></button>
-                                            </form>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            <?php else: ?>
-                                <p>No equipment listed.</p>
-                            <?php endif; ?>
-                            
-                            <!-- Add Equipment Button -->
-                            <button type="button" class="btn btn-primary mt-3" data-toggle="modal" data-target="#addEquipmentModal">
-                                <i class="fas fa-plus"></i> Add New Equipment
-                            </button>
-                        </div>
-
-                        <button type="submit" name="update_profile" class="btn btn-primary mt-4">Update Profile</button>
-                    </form>
-                <?php else: ?>
-                    <p class="alert alert-danger">Could not load busker profile. Please try again.</p>
-                <?php endif; ?>
-            </div>
             <div class="tab-pane fade" id="documents" role="tabpanel">
                 <h2>Document Management</h2>
                 <?php if (isset($error)): ?><!-- <div class="alert alert-danger"><?php echo $error; ?></div> --> <?php endif; ?>
@@ -1081,10 +990,7 @@ function getBuskerStatus($status) {
             const tab = urlParams.get('tab');
             if (tab) {
                 $(`#dashboardTabs a[href="#${tab}"]`).tab('show');
-            } else {
-                // Default to 'requests' tab if no tab is specified
-                $(`#dashboardTabs a[href="#requests"]`).tab('show');
-            }
+            } // else do nothing, Upcoming Bookings is default
             
             // Fade out alerts after a few seconds
             setTimeout(function() {
