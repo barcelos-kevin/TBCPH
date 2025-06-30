@@ -155,7 +155,7 @@ try {
             ts.start_time,
             ts.end_time,
             e.description,
-            GROUP_CONCAT(g.name) as genres,
+            GROUP_CONCAT(DISTINCT g.name) as genres,
             GROUP_CONCAT(DISTINCT sd.docs_id) as doc_ids,
             GROUP_CONCAT(DISTINCT sd.doc_link) as doc_links,
             h.busker_id as hired_busker_id,
@@ -624,6 +624,23 @@ function getClientStatus($status, $admin_status = null, $busker_status = null) {
             font-size: 0.9em;
             padding: 5px 10px;
         }
+
+        .genre-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 5px;
+        }
+        .badge {
+            display: inline-block;
+            background: #3498db;
+            color: #fff;
+            border-radius: 12px;
+            padding: 4px 12px;
+            font-size: 0.95em;
+            margin-bottom: 4px;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -869,7 +886,9 @@ function getClientStatus($status, $admin_status = null, $busker_status = null) {
 
                 <div class="detail-section">
                     <h3><i class="fas fa-music"></i> Preferred Genres</h3>
-                    <p>${inquiry.genres ? inquiry.genres.split(',').map(genre => `<span class="badge bg-primary me-2">${genre}</span>`).join('') : 'None selected'}</p>
+                    <div class="genre-badges">
+                        ${inquiry.genres ? inquiry.genres.split(',').map(genre => `<span class="badge">${genre}</span>`).join('') : 'None selected'}
+                    </div>
                 </div>
 
                 <div class="detail-section">
@@ -885,7 +904,7 @@ function getClientStatus($status, $admin_status = null, $busker_status = null) {
                             <p><strong>Contact:</strong> ${inquiry.busker_contact}</p>
                             <p><strong>Email:</strong> ${inquiry.busker_email}</p>
                             ${inquiry.busker_genres ? `
-                                <p><strong>Genres:</strong> ${inquiry.busker_genres.split(',').map(genre => `<span class="badge bg-info me-2">${genre}</span>`).join('')}</p>
+                                <p><strong>Genres:</strong> <div class="genre-badges">${inquiry.busker_genres.split(',').map(genre => `<span class="badge">${genre}</span>`).join('')}</div></p>
                             ` : ''}
                             ${inquiry.busker_equipment ? `
                                 <p><strong>Equipment:</strong> ${inquiry.busker_equipment.split(',').map(eq => `<span class="badge bg-secondary me-2">${eq}</span>`).join('')}</p>
