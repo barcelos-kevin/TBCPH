@@ -49,6 +49,21 @@ try {
     ");
     $pending_buskers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // Fetch current admin details
+    $admin = null;
+    if (isset($_SESSION['admin_email'])) {
+        $stmt = $conn->prepare("SELECT * FROM admin WHERE email = ?");
+        $stmt->execute([$_SESSION['admin_email']]);
+        $admin = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    // Fetch pending admin registrations (for super admin)
+    $pending_admins = [];
+    if ($admin && $admin['account_level'] === 'super_admin') {
+        $stmt = $conn->query("SELECT email, account_level, status FROM admin WHERE status = 'pending'");
+        $pending_admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
 } catch (PDOException $e) {
     error_log("Dashboard error: " . $e->getMessage());
     $error = "An error occurred while loading the dashboard.";
@@ -79,6 +94,21 @@ function getAdminStatus($status) {
             return 'Completed';
         default:
             return ucfirst($status);
+    }
+}
+
+// Handle approve/reject admin POST actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $admin && $admin['account_level'] === 'super_admin') {
+    if (isset($_POST['approve_admin']) && !empty($_POST['admin_email'])) {
+        $stmt = $conn->prepare("UPDATE admin SET status = 'approved' WHERE email = ?");
+        $stmt->execute([$_POST['admin_email']]);
+        header('Location: dashboard.php');
+        exit();
+    } elseif (isset($_POST['reject_admin']) && !empty($_POST['admin_email'])) {
+        $stmt = $conn->prepare("UPDATE admin SET status = 'rejected' WHERE email = ?");
+        $stmt->execute([$_POST['admin_email']]);
+        header('Location: dashboard.php');
+        exit();
     }
 }
 ?>
@@ -364,6 +394,9 @@ function getAdminStatus($status) {
         <div class="dashboard-container">
             <div class="dashboard-header">
                 <h1 class="dashboard-title">Admin Dashboard</h1>
+                <div>
+                    <span style="font-size:1em;color:#888;">Account Level: <strong><?php echo htmlspecialchars($admin['account_level']); ?></strong></span>
+                </div>
                 <div class="header-actions">
                     <a href="manage_inquiries.php" class="btn btn-primary">
                         <i class="fas fa-tasks"></i>
@@ -474,6 +507,47 @@ function getAdminStatus($status) {
                     </tbody>
                 </table>
             </div>
+
+            <?php if ($admin && $admin['account_level'] === 'super_admin'): ?>
+            <div class="dashboard-section">
+                <div class="section-header">
+                    <h2 class="section-title">Pending Admin Registrations</h2>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Account Level</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($pending_admins)): ?>
+                            <tr><td colspan="4" class="text-center">No pending admin registrations</td></tr>
+                        <?php else: ?>
+                            <?php foreach ($pending_admins as $pending): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($pending['email']); ?></td>
+                                    <td><?php echo htmlspecialchars($pending['account_level']); ?></td>
+                                    <td><?php echo htmlspecialchars($pending['status']); ?></td>
+                                    <td>
+                                        <form method="post" style="display:inline;">
+                                            <input type="hidden" name="admin_email" value="<?php echo htmlspecialchars($pending['email']); ?>">
+                                            <button type="submit" name="approve_admin" class="btn btn-primary" onclick="return confirm('Approve this admin?');">Approve</button>
+                                        </form>
+                                        <form method="post" style="display:inline;">
+                                            <input type="hidden" name="admin_email" value="<?php echo htmlspecialchars($pending['email']); ?>">
+                                            <button type="submit" name="reject_admin" class="btn btn-secondary" onclick="return confirm('Reject this admin?');">Reject</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
         </div>
     </main>
 

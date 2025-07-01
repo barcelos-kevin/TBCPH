@@ -5,7 +5,9 @@ USE busker_management;
 -- Create Admin table
 CREATE TABLE admin (
     email VARCHAR(255) PRIMARY KEY,
-    password VARCHAR(255) NOT NULL
+    password VARCHAR(255) NOT NULL,
+    account_level VARCHAR(20) NOT NULL DEFAULT 'admin',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending'
 );
 
 -- Create Location table
@@ -156,10 +158,10 @@ CREATE TABLE review (
 -- ===========================================
 
 -- Insert Admin data
-INSERT INTO admin (email, password) VALUES 
-('admin@eventmanagement.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
-('manager@eventmanagement.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'),
-('supervisor@eventmanagement.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi');
+INSERT INTO admin (email, password, account_level, status) VALUES 
+('admin@eventmanagement.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'super_admin', 'approved'),
+('manager@eventmanagement.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'approved'),
+('supervisor@eventmanagement.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'approved');
 
 -- Insert Time Slots data
 INSERT INTO time_slot (start_time, end_time) VALUES 
