@@ -13,7 +13,7 @@ include __DIR__ . '/../includes/header.php';
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
     <style>
         .about-hero {
-            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('/tbcph/assets/images/hero-bg.jpg');
+            background: linear-gradient(rgba(96, 96, 96, 0.7), rgba(0, 0, 0, 0.7)), url('/tbcph/assets/images/busking.jpg');
             background-size: cover;
             background-position: center;
             color: white;

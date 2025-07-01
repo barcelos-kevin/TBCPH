@@ -14,7 +14,7 @@ body {
 /* Header and Navigation */
 header {
     background-color: #fff;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     padding: 1rem 0;
     position: fixed;
     width: 100%;
@@ -115,7 +115,7 @@ main {
     background: white;
     border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .busker-image img {
@@ -205,7 +205,7 @@ footer {
     text-align: center;
     margin-top: 2rem;
     padding-top: 1rem;
-    border-top: 1px solid rgba(255,255,255,0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Responsive Design */
@@ -213,7 +213,7 @@ footer {
     .nav-links {
         display: none;
     }
-    
+
     .hero h1 {
         font-size: 2rem;
     }
@@ -234,7 +234,7 @@ footer {
     background: #fff;
     padding: 2rem;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .profile-image {
@@ -278,7 +278,7 @@ footer {
     background: #fff;
     padding: 2rem;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .profile-details h2 {
@@ -321,9 +321,9 @@ footer {
     max-width: 800px;
     margin: 2rem auto;
     padding: 2rem;
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    background: #ebebeb;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .contact-container h1 {
@@ -362,7 +362,7 @@ footer {
 .form-group textarea:focus {
     outline: none;
     border-color: #007bff;
-    box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
 .genre-checkboxes {
@@ -402,7 +402,7 @@ footer {
 .login-prompt {
     text-align: center;
     padding: 2rem;
-    background: #f8f9fa;
+    background: #d0d0d0;
     border-radius: 4px;
 }
 
@@ -570,8 +570,8 @@ footer {
     .dashboard-actions {
         flex-direction: column;
     }
-    
+
     .inquiries-grid {
         grid-template-columns: 1fr;
     }
-} 
+}
