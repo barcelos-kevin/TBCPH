@@ -56,10 +56,10 @@ include __DIR__ . '/../includes/header.php';
         }
 
         .service-card, .value-card {
-            background: #fff;
+            background:rgb(228, 231, 234);
             padding: 30px;
             border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px rgba(10, 0, 0, 0.1);
             transition: transform 0.3s ease;
         }
 
@@ -96,7 +96,7 @@ include __DIR__ . '/../includes/header.php';
         }
 
         .cta {
-            background: #f8f9fa;
+            background:rgb(228, 231, 234);
             padding: 80px 20px;
             text-align: center;
         }
@@ -105,6 +105,12 @@ include __DIR__ . '/../includes/header.php';
             font-size: 2.5em;
             margin-bottom: 20px;
             color: #2c3e50;
+        }
+
+        .cta p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            color: #555;
         }
 
         .cta-buttons {

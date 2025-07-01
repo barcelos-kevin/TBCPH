@@ -70,6 +70,7 @@ if (!isset($_SESSION['form_token'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Login - TBCPH</title>
+    <link rel="icon" href="/tbcph/assets/images/logo.jpg">
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
     <style>
         .auth-container {
@@ -194,6 +195,9 @@ if (!isset($_SESSION['form_token'])) {
     <header>
         <nav>
             <div class="logo">
+                <img
+                    src="/tbcph/assets/images/logo.jpg"
+                    class="logo-img" />
                 <a href="/tbcph/public/index.php">TBCPH</a>
             </div>
             <ul class="nav-links">

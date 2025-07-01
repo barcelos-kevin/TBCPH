@@ -116,6 +116,12 @@ main {
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.busker-card:hover {
+    transform: translateY(-5px);
+    transition: transform 0.3s ease;
 }
 
 .busker-image img {
@@ -319,7 +325,7 @@ footer {
 /* Contact Form Styles */
 .contact-container {
     max-width: 800px;
-    margin: 2rem auto;
+    margin: 7.5rem auto 4rem;
     padding: 2rem;
     background: #ebebeb;
     border-radius: 5px;
@@ -574,4 +580,20 @@ footer {
     .inquiries-grid {
         grid-template-columns: 1fr;
     }
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    padding: 10px 30px;
+    gap: 10px;
+}
+
+.logo-img {
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
 }

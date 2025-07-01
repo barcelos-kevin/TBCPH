@@ -250,6 +250,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <header>
         <nav>
             <div class="logo">
+            <img
+                    src="/tbcph/assets/images/logo.jpg"
+                    class="logo-img" />
                 <a href="/tbcph/public/index.php">TBCPH</a>
             </div>
             <ul class="nav-links">

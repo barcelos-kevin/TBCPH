@@ -4,12 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TBCPH - The Busking Community PH</title>
+    <link rel="icon" href="/tbcph/assets/images/logo.jpg">
     <link rel="stylesheet" href="/tbcph/assets/css/style.css">
 </head>
 <body>
     <header>
         <nav>
             <div class="logo">
+                <img
+                    src="/tbcph/assets/images/logo.jpg"
+                    class="logo-img" />
                 <a href="/tbcph/public/index.php">TBCPH</a>
             </div>
             <ul class="nav-links">
