@@ -371,24 +371,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $admin && $admin['account_level'] =
     </style>
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="logo">
-                <a href="/tbcph/public/index.php">TBCPH</a>
-            </div>
-            <ul class="nav-links">
-                <li><a href="/tbcph/public/index.php">Home</a></li>
-                <li><a href="/tbcph/public/about.php">About</a></li>
-                <li><a href="/tbcph/public/buskers.php">Buskers</a></li>
-                <li><a href="/tbcph/public/contact.php">Contact</a></li>
-                <?php if(isset($_SESSION['admin_email'])): ?>
-                    <li><a href="/tbcph/admin/dashboard.php">Admin Dashboard</a></li>
-                    <li><a href="/tbcph/admin/profile.php">My Profile</a></li>
-                    <li><a href="/tbcph/includes/logout.php?type=admin">Logout</a></li>
-                <?php endif; ?>
-            </ul>
-        </nav>
-    </header>
+    <?php include __DIR__ . '/../includes/admin_header.php'; ?>
 
     <main>
         <div class="dashboard-container">
@@ -405,6 +388,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $admin && $admin['account_level'] =
                             <span class="badge"><?php echo $pending_inquiries; ?></span>
                         <?php endif; ?>
                     </a>
+                    <a href="verify_payments.php" class="btn btn-warning">Verify Payments</a>
                     <a href="pending_buskers.php" class="btn">Pending Buskers</a>
                     <a href="profile.php" class="btn">My Profile</a>
                 </div>

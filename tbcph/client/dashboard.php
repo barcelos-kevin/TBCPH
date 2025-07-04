@@ -164,7 +164,8 @@ try {
             b.contact_number as busker_contact,
             b.email as busker_email,
             GROUP_CONCAT(DISTINCT bg.name) as busker_genres,
-            GROUP_CONCAT(DISTINCT be.equipment_name) as busker_equipment
+            GROUP_CONCAT(DISTINCT be.equipment_name) as busker_equipment,
+            h.payment_status
         FROM inquiry i
         JOIN event_table e ON i.event_id = e.event_id
         LEFT JOIN location l ON e.location_id = l.location_id
@@ -678,13 +679,14 @@ function getClientStatus($status, $admin_status = null, $busker_status = null) {
                             <th>Budget</th>
                             <th>Hired Busker</th>
                             <th>Status</th>
+                            <th>Payment Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($inquiries)): ?>
                             <tr>
-                                <td colspan="7" style="text-align: center;">No inquiries found.</td>
+                                <td colspan="9" style="text-align: center;">No inquiries found.</td>
                             </tr>
                 <?php else: ?>
                         <?php foreach ($inquiries as $inquiry): ?>
@@ -707,9 +709,25 @@ function getClientStatus($status, $admin_status = null, $busker_status = null) {
                                         </span>
                                     </td>
                                     <td>
+                                        <?php if ($inquiry['hired_busker_id']): ?>
+                                            <?php if (isset($inquiry['payment_status']) && $inquiry['payment_status']): ?>
+                                                <span class="status-badge <?php echo strtolower($inquiry['payment_status']); ?>">
+                                                    <?php echo ucfirst($inquiry['payment_status']); ?>
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="status-badge">-</span>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <span class="status-badge">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
                                         <div class="action-buttons">
                                             <button class="btn-view" onclick='viewInquiry(<?php echo json_encode($inquiry, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)'>View</button>
-                            </div>
+                                            <?php if ($inquiry['hired_busker_id'] && (!isset($inquiry['payment_status']) || strtolower($inquiry['payment_status']) !== 'paid')): ?>
+                                                <a href="payment.php?inquiry_id=<?php echo $inquiry['inquiry_id']; ?>" class="btn btn-warning btn-sm" style="margin-top:5px;">Pay</a>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
                                 </tr>
                         <?php endforeach; ?>
